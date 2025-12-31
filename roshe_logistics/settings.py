@@ -154,11 +154,16 @@ def _postgres_is_reachable(postgres_settings: dict) -> bool:
         conn.close()
         return True
     except Exception as exc:
-        print(
-            f"Postgres is configured but unreachable at startup ({type(exc).__name__}); falling back to SQLite.",
-            file=sys.stderr,
-        )
         return False
+
+
+def _should_fallback_to_sqlite() -> bool:
+    # In local development, prefer booting even if Postgres isn't available.
+    if "runserver" in sys.argv:
+        return True
+
+    # In production, do NOT silently fall back unless explicitly allowed.
+    return config("POSTGRES_FALLBACK_TO_SQLITE", default=False, cast=bool)
 
 
 if DB_ENGINE in {"postgres", "postgresql", "psql"}:
@@ -166,7 +171,17 @@ if DB_ENGINE in {"postgres", "postgresql", "psql"}:
     if _postgres_is_reachable(_pg):
         DATABASES = {'default': _pg}
     else:
-        DATABASES = _sqlite_databases()
+        if _should_fallback_to_sqlite():
+            print(
+                "Postgres is configured but unreachable at startup; falling back to SQLite.",
+                file=sys.stderr,
+            )
+            DATABASES = _sqlite_databases()
+        else:
+            raise RuntimeError(
+                "Postgres is configured but unreachable. Fix DB_* settings, install psycopg2-binary, "
+                "or set POSTGRES_FALLBACK_TO_SQLITE=True to allow SQLite fallback."
+            )
 else:
     DATABASES = _sqlite_databases()
 
