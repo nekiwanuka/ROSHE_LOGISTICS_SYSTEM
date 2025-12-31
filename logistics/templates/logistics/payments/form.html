@@ -1,0 +1,86 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}{% if title %}{{ title }}{% else %}Payment{% endif %} - Roshe Group Logistics Portal{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="bi bi-cash-coin"></i> {{ title }}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.loading.id_for_label }}" class="form-label">Loading *</label>
+                            {{ form.loading }}
+                            {% if form.loading.errors %}<div class="text-danger">{{ form.loading.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.amount_charged.id_for_label }}" class="form-label">Amount Charged *</label>
+                                    {{ form.amount_charged }}
+                                    {% if form.amount_charged.errors %}<div class="text-danger">{{ form.amount_charged.errors }}</div>{% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Amount Paid (auto)</label>
+                                    {% if payment %}
+                                    <input type="text" class="form-control" value="${{ payment.amount_paid|floatformat:2 }}" readonly>
+                                    {% else %}
+                                    <input type="text" class="form-control" value="$0.00" readonly>
+                                    {% endif %}
+                                    <small class="text-muted">Updates automatically when you record payments.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.payment_date.id_for_label }}" class="form-label">Payment Date</label>
+                                    {{ form.payment_date }}
+                                    {% if form.payment_date.errors %}<div class="text-danger">{{ form.payment_date.errors }}</div>{% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.payment_method.id_for_label }}" class="form-label">Payment Method</label>
+                                    {{ form.payment_method }}
+                                    {% if form.payment_method.errors %}<div class="text-danger">{{ form.payment_method.errors }}</div>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.receipt_number.id_for_label }}" class="form-label">Receipt Number</label>
+                            {{ form.receipt_number }}
+                            {% if form.receipt_number.errors %}<div class="text-danger">{{ form.receipt_number.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'payment_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Save Payment
+                            </button>
+                            {% if payment %}
+                            <a href="{% url 'payment_invoice' payment.id %}" class="btn btn-outline-primary">
+                                <i class="bi bi-file-earmark-pdf"></i> Invoice
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

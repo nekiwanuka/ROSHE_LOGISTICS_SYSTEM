@@ -1,0 +1,114 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}{{ loading.loading_id }} - Roshe Group Logistics Portal{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h3><i class="bi bi-box"></i> {{ loading.loading_id }}</h3>
+                    {% if user.role == 'superuser' %}
+                    <a href="{% url 'loading_update' loading.id %}" class="btn btn-sm btn-warning">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Client</h6>
+                            <p><a href="{% url 'client_detail' loading.client.id %}">{{ loading.client.name }}</a></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Loading Date</h6>
+                            <p>{{ loading.loading_date|date:"Y-m-d H:i" }}</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Origin</h6>
+                            <p>{{ loading.origin }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Destination</h6>
+                            <p>{{ loading.destination }}</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Container Number</h6>
+                            <p><strong>{{ loading.container_number }}</strong></p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Container Size</h6>
+                            <p>{{ loading.get_container_size_display|default:'-' }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Weight</h6>
+                            <p>
+                                {% if loading.weight %}
+                                    {{ loading.weight }} KG
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="text-muted">Item Description</h6>
+                        <p>{{ loading.item_description }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-ship"></i> Transit</h5>
+                </div>
+                <div class="card-body">
+                    {% if has_transit %}
+                        <p>Status: <span class="badge bg-info">{{ loading.transit.get_status_display }}</span></p>
+                        <p><small class="text-muted">ETA: {{ loading.transit.eta_kampala|date:"Y-m-d" }}</small></p>
+                        <a href="{% url 'transit_update' loading.transit.id %}" class="btn btn-sm btn-warning w-100">
+                            <i class="bi bi-pencil"></i> Update Transit
+                        </a>
+                    {% else %}
+                        <p class="text-muted">No transit record yet</p>
+                        <a href="{% url 'transit_create_with_loading' loading.id %}" class="btn btn-sm btn-primary w-100">
+                            <i class="bi bi-plus"></i> Add Transit
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-cash-coin"></i> Payment</h5>
+                </div>
+                <div class="card-body">
+                    {% if has_payment %}
+                        <p>Charged: ${{ loading.payment.amount_charged }}</p>
+                        <p>Paid: ${{ loading.payment.amount_paid }}</p>
+                        <p>Balance: <strong>${{ loading.payment.balance }}</strong></p>
+                        <a href="{% url 'payment_update' loading.payment.id %}" class="btn btn-sm btn-warning w-100">
+                            <i class="bi bi-pencil"></i> Update Payment
+                        </a>
+                    {% else %}
+                        <p class="text-muted">No payment record yet</p>
+                        <a href="{% url 'payment_create_with_loading' loading.id %}" class="btn btn-sm btn-primary w-100">
+                            <i class="bi bi-plus"></i> Add Payment
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

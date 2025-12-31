@@ -1,0 +1,158 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}{% if title %}{{ title }}{% else %}Cargo{% endif %} - Roshe Group Logistics Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .loading-form-section {
+        padding-bottom: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.065);
+    }
+
+    .loading-form-section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0;
+    }
+
+    .section-eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.78rem;
+        color: #6c7a89;
+        font-weight: 600;
+    }
+
+    .section-heading {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .section-heading h5 {
+        margin: 0;
+        color: #0a1930;
+    }
+
+    .section-subtitle {
+        color: #6c7a89;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .field-hint {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.35rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                    <div>
+                        <h3 class="mb-1"><i class="bi bi-box-seam"></i> {{ title }}</h3>
+                        <p class="mb-0 small text-light">Capture the shipment overview, routing, and cargo description in one pass.</p>
+                    </div>
+                    <span class="badge bg-warning text-dark mt-3 mt-md-0">Required fields are marked with *</span>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="loading-form-section">
+                            <div class="section-heading">
+                                <span class="section-eyebrow">01 · Shipment Overview</span>
+                            </div>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label for="{{ form.loading_id.id_for_label }}" class="form-label">Loading ID *</label>
+                                    {{ form.loading_id }}
+                                    {% if form.loading_id.errors %}<div class="text-danger">{{ form.loading_id.errors }}</div>{% endif %}
+                                    <p class="field-hint">Use your internal reference or let the system auto-generate a unique code.</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.client.id_for_label }}" class="form-label">Client *</label>
+                                    {{ form.client }}
+                                    {% if form.client.errors %}<div class="text-danger">{{ form.client.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.loading_date.id_for_label }}" class="form-label">Loading Date *</label>
+                                    {{ form.loading_date }}
+                                    {% if form.loading_date.errors %}<div class="text-danger">{{ form.loading_date.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.weight.id_for_label }}" class="form-label">Weight (KG)</label>
+                                    {{ form.weight }}
+                                    {% if form.weight.errors %}<div class="text-danger">{{ form.weight.errors }}</div>{% endif %}
+                                    <p class="field-hint">Leave blank if weight is pending confirmation.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading-form-section">
+                            <div class="section-heading">
+                                <span class="section-eyebrow">02 · Equipment & Route</span>
+                            </div>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label for="{{ form.container_number.id_for_label }}" class="form-label">Container Number *</label>
+                                    {{ form.container_number }}
+                                    {% if form.container_number.errors %}<div class="text-danger">{{ form.container_number.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.container_size.id_for_label }}" class="form-label">Container Size</label>
+                                    {{ form.container_size }}
+                                    {% if form.container_size.errors %}<div class="text-danger">{{ form.container_size.errors }}</div>{% endif %}
+                                    <p class="field-hint">Optional — helps downstream billing and container tracking.</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.origin.id_for_label }}" class="form-label">Origin *</label>
+                                    {{ form.origin }}
+                                    {% if form.origin.errors %}<div class="text-danger">{{ form.origin.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.destination.id_for_label }}" class="form-label">Destination *</label>
+                                    {{ form.destination }}
+                                    {% if form.destination.errors %}<div class="text-danger">{{ form.destination.errors }}</div>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading-form-section">
+                            <div class="section-heading">
+                                <span class="section-eyebrow">03 · Cargo Description</span>
+                                <p class="section-subtitle">Specify commodity details, packaging notes, or special handling instructions.</p>
+                            </div>
+                            <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description *</label>
+                            {{ form.item_description }}
+                            {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'loading_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Save Cargo
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

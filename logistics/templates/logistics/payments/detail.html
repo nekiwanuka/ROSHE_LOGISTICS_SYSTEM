@@ -1,0 +1,189 @@
+{% extends 'logistics/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-0">Payment #{% if payment.invoice_number %}{{ payment.invoice_number }}{% else %}Draft{% endif %}</h2>
+            <small class="text-muted">Loading ID: {{ payment.loading.loading_id }} &middot; Client: {{ payment.loading.client.name }}</small>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'payment_invoice' payment.pk %}" class="btn btn-outline-primary" target="_blank">
+                <i class="bi bi-printer"></i> Download Invoice
+            </a>
+            {% if payment.transactions.exists %}
+            <button class="btn btn-outline-secondary" disabled>
+                Total Payments: {{ payment.transactions.count }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Financial Summary</h5>
+                    <dl class="row mb-0">
+                        <dt class="col-6">Amount Charged</dt>
+                        <dd class="col-6 text-end fw-bold">${{ payment.amount_charged|floatformat:2|intcomma }}</dd>
+                        <dt class="col-6">Amount Paid</dt>
+                        <dd class="col-6 text-end text-success fw-bold">${{ payment.amount_paid|floatformat:2|intcomma }}</dd>
+                        <dt class="col-6">Balance</dt>
+                        <dd class="col-6 text-end {% if payment.balance > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">${{ payment.balance|floatformat:2|intcomma }}</dd>
+                        <dt class="col-6">Payment Method</dt>
+                        <dd class="col-6 text-end">{{ payment.get_payment_method_display|default:'—' }}</dd>
+                        <dt class="col-6">Last Updated</dt>
+                        <dd class="col-6 text-end">{{ payment.updated_at|date:"M d, Y H:i" }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Client Details</h5>
+                    <p class="mb-1 fw-semibold">{{ payment.loading.client.name }}</p>
+                    <p class="mb-1">Client ID: {{ payment.loading.client.client_id }}</p>
+                    <p class="mb-1">Contact Person: {{ payment.loading.client.contact_person }}</p>
+                    <p class="mb-1">Phone: {{ payment.loading.client.phone }}</p>
+                    <p class="mb-0">Address: {{ payment.loading.client.address }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Shipment Snapshot</h5>
+                    <p class="mb-1">Route: {{ payment.loading.origin }} → {{ payment.loading.destination }}</p>
+                    <p class="mb-1">Container #: {{ payment.loading.container_number }}</p>
+                    <p class="mb-1">Weight: {{ payment.loading.weight }} KG</p>
+                    <p class="mb-1">Loading Date: {{ payment.loading.loading_date|date:"M d, Y" }}</p>
+                    <p class="mb-0">Created By: {{ payment.created_by.username }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Payment History</h5>
+                        <span class="badge bg-primary">{{ transactions.count }} records</span>
+                    </div>
+                    {% if transactions %}
+                    <div class="payment-history-list">
+                        {% for transaction in transactions %}
+                        <div class="list-group-item shadow-sm border-0 rounded-3 mb-3 p-3">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div>
+                                    <p class="text-muted mb-1">{{ transaction.payment_date|date:"M d, Y H:i" }}</p>
+                                    <h4 class="mb-0 text-primary">${{ transaction.amount|floatformat:2|intcomma }}</h4>
+                                </div>
+                                <div class="text-md-end">
+                                    {% if transaction.verification_status == 'approved' %}
+                                    <span class="badge bg-success px-3 py-2">Approved</span>
+                                    {% elif transaction.verification_status == 'rejected' %}
+                                    <span class="badge bg-danger px-3 py-2">Rejected</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark px-3 py-2">Pending</span>
+                                    {% endif %}
+                                    {% if transaction.verified_by %}
+                                    <small class="text-muted d-block mt-1">Verified by {{ transaction.verified_by.username }} on {{ transaction.verified_at|date:"M d, Y H:i" }}</small>
+                                    {% endif %}
+                                    {% if transaction.verification_notes %}
+                                    <small class="text-muted fst-italic d-block">“{{ transaction.verification_notes }}”</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="row g-3 text-muted small">
+                                <div class="col-md-3">
+                                    <i class="bi bi-wallet2"></i> {{ transaction.get_payment_method_display }}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="bi bi-upc"></i> {{ transaction.reference|default:'No reference' }}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="bi bi-person"></i> {{ transaction.created_by.username }}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="bi bi-journal-check"></i> Receipt: {% if transaction.verification_status == 'approved' %}<a href="{% url 'payment_receipt' transaction.pk %}" target="_blank">Download</a>{% else %}<span class="text-danger">Locked</span>{% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mt-3">
+                                <div class="small text-muted">
+                                    Recorded by {{ transaction.created_by.username }} on {{ transaction.created_at|date:"M d, Y H:i" }}
+                                </div>
+                                {% if can_verify %}
+                                <form method="post" class="verification-form w-100 w-md-auto">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="verify_transaction">
+                                    <input type="hidden" name="transaction_id" value="{{ transaction.pk }}">
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col-md-6">
+                                            <select name="verification_status" class="form-select form-select-sm">
+                                                {% for value, label in verification_choices %}
+                                                <option value="{{ value }}" {% if transaction.verification_status == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 text-md-end">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm w-100">Update Status</button>
+                                        </div>
+                                        <div class="col-12">
+                                            <textarea name="verification_notes" class="form-control form-control-sm" rows="1" placeholder="Verification note (optional)">{{ transaction.verification_notes|default_if_none:'' }}</textarea>
+                                        </div>
+                                    </div>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No payment transactions recorded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Record Payment</h5>
+                    <form method="post" class="row g-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_transaction">
+                        <div class="col-12">
+                            <label class="form-label">Amount</label>
+                            {{ transaction_form.amount }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Date</label>
+                            {{ transaction_form.payment_date }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Method</label>
+                            {{ transaction_form.payment_method }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Reference</label>
+                            {{ transaction_form.reference }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Notes</label>
+                            {{ transaction_form.notes }}
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary">Save Payment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

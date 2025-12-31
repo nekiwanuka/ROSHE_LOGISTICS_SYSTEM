@@ -1,0 +1,162 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}Dashboard - Roshe Group Logistics Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </h1>
+
+    <!-- Statistics Cards -->
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 row-cols-xxl-5 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body dashboard-stat">
+                    <h4><i class="bi bi-people"></i> Clients</h4>
+                    <p>{{ total_clients }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body dashboard-stat">
+                    <h4><i class="bi bi-box"></i> Cargo</h4>
+                    <p>{{ total_loadings }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body dashboard-stat">
+                    <h4><i class="bi bi-ship"></i> In Transit</h4>
+                    <p>{{ total_transits }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body dashboard-stat">
+                    <h4><i class="bi bi-exclamation-circle"></i> Outstanding</h4>
+                    <p>${{ outstanding_payments|floatformat:2 }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body dashboard-stat">
+                    <h4><i class="bi bi-shield-check"></i> Pending Verifications</h4>
+                    <p>{{ pending_verifications }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Clients -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-people"></i> Recent Clients</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Client ID</th>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for client in recent_clients %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'client_detail' client.id %}">
+                                            {{ client.client_id }}
+                                        </a>
+                                    </td>
+                                    <td>{{ client.name }}</td>
+                                    <td>{{ client.phone }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted">No clients yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'client_list' %}" class="btn btn-sm btn-primary">
+                        View All Clients
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Loadings -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-box"></i> Recent Cargo</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Loading ID</th>
+                                    <th>Client</th>
+                                    <th>Destination</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for loading in recent_loadings %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'loading_detail' loading.id %}">
+                                            {{ loading.loading_id }}
+                                        </a>
+                                    </td>
+                                    <td>{{ loading.client.name }}</td>
+                                    <td>{{ loading.destination }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted">No cargo yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'loading_list' %}" class="btn btn-sm btn-primary">
+                        View All Cargo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Containers -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-archive"></i> Pending Container Returns: <span class="badge bg-warning">{{ pending_containers }}</span></h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Keep track of containers awaiting return</p>
+                    <a href="{% url 'container_return_list' %}" class="btn btn-warning">
+                        View Pending Returns
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

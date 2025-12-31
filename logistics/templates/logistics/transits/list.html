@@ -1,0 +1,79 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}Transit Management - Roshe Group Logistics Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-ship"></i> Transit Management</h1>
+        <a href="{% url 'transit_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Transit
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="form-inline">
+                <select name="status" class="form-select me-2">
+                    <option value="">All Status</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Filter</button>
+                {% if status_filter %}
+                <a href="{% url 'transit_list' %}" class="btn btn-secondary ms-2">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Vessel Name</th>
+                        <th>Loading ID</th>
+                        <th>Boarding Date</th>
+                        <th>ETA Kampala</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transit in transits %}
+                    <tr>
+                        <td><strong>{{ transit.vessel_name }}</strong></td>
+                        <td><a href="{% url 'loading_detail' transit.loading.id %}">{{ transit.loading.loading_id }}</a></td>
+                        <td>{{ transit.boarding_date|date:"Y-m-d" }}</td>
+                        <td>{{ transit.eta_kampala|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if transit.status == 'in_transit' %}
+                            <span class="badge bg-warning">{{ transit.get_status_display }}</span>
+                            {% elif transit.status == 'arrived' %}
+                            <span class="badge bg-success">{{ transit.get_status_display }}</span>
+                            {% else %}
+                            <span class="badge bg-info">{{ transit.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.role == 'superuser' %}
+                            <a href="{% url 'transit_update' transit.id %}" class="btn btn-sm btn-warning">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">No transit records found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% include "logistics/components/pagination.html" %}
+    </div>
+</div>
+{% endblock %}

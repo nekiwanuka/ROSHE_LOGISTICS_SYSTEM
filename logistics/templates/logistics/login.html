@@ -1,0 +1,40 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}Login - Roshe Group Logistics Portal{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h6><i class="bi bi-box-seam"></i> Roshe Group Logistics Portal</h6>
+                    <p class="mb-0" style="font-size: 0.9rem;">Login to Your Account</p>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="id_username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="id_username" name="username" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="id_password" name="password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer bg-light text-center">
+                    <small>Roshe Group Offline Logistics Management System</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,129 @@
+# Django
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Django migrations
+# migrations/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Database
+db.sqlite3
+*.sqlite3
+db.sqlite3-journal
+
+# Static files
+staticfiles/
+static/admin/
+static/rest_framework/
+
+# Media files
+media/
+
+# Logs
+*.log
+logs/
+logistics.log
+
+# Environment variables
+.env
+.env.local
+.env.*
+.env.*.local
+!.env.example
+
+# OS files
+Thumbs.db
+.DS_Store
+*.bak
+
+# PyInstaller
+build/
+dist/
+*.exe
+
+# Backup files
+*.backup
+*.bak
+backups/
+*.swp
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# Cache
+*.cache
+.cache/
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+.tox/
+
+# Sphinx
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Project specific
+notes/
+temp_files/
+test_data/
+exports/*.csv
