@@ -58,7 +58,7 @@
                     <h5 class="card-title">Shipment Snapshot</h5>
                     <p class="mb-1">Route: {{ payment.loading.origin }} → {{ payment.loading.destination }}</p>
                     <p class="mb-1">Container #: {{ payment.loading.container_number }}</p>
-                    <p class="mb-1">Weight: {{ payment.loading.weight }} KG</p>
+                    <p class="mb-1">CBM: {{ payment.loading.weight }} CBM</p>
                     <p class="mb-1">Loading Date: {{ payment.loading.loading_date|date:"M d, Y" }}</p>
                     <p class="mb-0">Created By: {{ payment.created_by.username }}</p>
                 </div>

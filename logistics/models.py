@@ -93,7 +93,8 @@ class Loading(models.Model):
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='loadings')
     loading_date = models.DateTimeField()
     item_description = models.TextField()
-    weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # in KG
+    # Stored as a decimal; the business meaning is CBM (volume).
+    weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     container_number = models.CharField(max_length=100)
     container_size = models.CharField(max_length=20, choices=CONTAINER_SIZE_CHOICES, blank=True)
     origin = models.CharField(max_length=255)

@@ -598,11 +598,11 @@ def payment_invoice(request, pk):
         bill_top - 64,
         f"Container Size: {container_size_label}",
     )
-    weight_label = f"{payment.loading.weight} KG" if payment.loading.weight else 'N/A'
+    weight_label = f"{payment.loading.weight} CBM" if payment.loading.weight else 'N/A'
     pdf.drawString(
         ship_left + 10,
         bill_top - 80,
-        f"Weight: {weight_label}",
+        f"CBM: {weight_label}",
     )
     pdf.drawString(
         ship_left + 10,
@@ -927,7 +927,7 @@ def export_shipments_csv(request):
             'Client',
             'Loading Date',
             'Item Description',
-            'Weight (KG)',
+            'CBM',
             'Container Number',
             'Container Size',
             'Origin',
@@ -959,7 +959,7 @@ def export_shipments_pdf(request):
         'Client',
         'Loading Date',
         'Item Description',
-        'Weight (KG)',
+        'CBM',
         'Container Number',
         'Container Size',
         'Origin',

@@ -160,7 +160,7 @@ class LoadingForm(forms.ModelForm):
             }),
             'weight': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Weight (KG)',
+                'placeholder': 'CBM',
                 'step': '0.01'
             }),
             'container_number': forms.TextInput(attrs={
@@ -183,6 +183,7 @@ class LoadingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['weight'].required = False
+        self.fields['weight'].label = 'CBM'
         self.fields['container_size'].required = False
         self.fields['client'].empty_label = 'Select client'
         size_choices = [choice for choice in self.fields['container_size'].choices if choice[0]]
