@@ -15,14 +15,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 config = AutoConfig(search_path=BASE_DIR)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config("SECRET_KEY", default="").strip()
+# Support both SECRET_KEY and the common hosting convention DJANGO_SECRET_KEY.
+SECRET_KEY = config("DJANGO_SECRET_KEY", default="").strip()
+if not SECRET_KEY:
+    SECRET_KEY = config("SECRET_KEY", default="").strip()
 if not SECRET_KEY:
     raise RuntimeError(
         "SECRET_KEY is not set. Create a .env file (see .env.example) or set the SECRET_KEY environment variable."
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=False, cast=bool)
+# Support both DEBUG and DJANGO_DEBUG.
+DEBUG = config("DJANGO_DEBUG", default="").strip()
+if DEBUG == "":
+    DEBUG = config("DEBUG", default=False, cast=bool)
+else:
+    # Accept typical 0/1 as well as true/false.
+    DEBUG = str(DEBUG).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 # Seed/reset tools are for local development only. Keep disabled in production.
 # Set ENABLE_SEED_TOOLS=True explicitly if you really need it.
