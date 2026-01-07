@@ -121,6 +121,12 @@ def _sqlite_databases():
 
 
 def _postgres_databases():
+    _options = {}
+    _sslmode = config("DB_SSLMODE", default="").strip()
+    if _sslmode:
+        # Common values: disable|allow|prefer|require|verify-ca|verify-full
+        _options["sslmode"] = _sslmode
+
     return {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -129,6 +135,7 @@ def _postgres_databases():
             'PASSWORD': config("DB_PASSWORD", default=""),
             'HOST': config("DB_HOST", default="localhost").strip(),
             'PORT': config("DB_PORT", default="5432").strip(),
+            'OPTIONS': _options,
         }
     }
 
