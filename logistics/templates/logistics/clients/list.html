@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}Clients - Roshe Group Logistics Portal{% endblock %}
+{% block title %}Clients - ROSHE LOGISTICS{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -64,10 +64,10 @@
                                 <a href="{% url 'client_detail' client.id %}" class="btn btn-sm btn-info" title="View details">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                {% if user.role == 'superuser' %}
                                 <a href="{% url 'client_update' client.id %}" class="btn btn-sm btn-warning" title="Edit client">
                                     <i class="bi bi-pencil"></i>
                                 </a>
+                                {% if user.role == 'superuser' or user.role == 'managing_director' %}
                                 <a href="{% url 'client_delete' client.id %}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this client?')" title="Delete client">
                                     <i class="bi bi-trash"></i>
                                 </a>

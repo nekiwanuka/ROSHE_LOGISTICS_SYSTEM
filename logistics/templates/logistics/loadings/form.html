@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}{% if title %}{{ title }}{% else %}Cargo{% endif %} - Roshe Group Logistics Portal{% endblock %}
+{% block title %}{% if title %}{{ title }}{% else %}Cargo{% endif %} - ROSHE LOGISTICS{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -78,10 +78,10 @@
                             </div>
                             <div class="row g-4">
                                 <div class="col-md-6">
-                                    <label for="{{ form.loading_id.id_for_label }}" class="form-label">Loading ID *</label>
-                                    {{ form.loading_id }}
-                                    {% if form.loading_id.errors %}<div class="text-danger">{{ form.loading_id.errors }}</div>{% endif %}
-                                    <p class="field-hint">Use your internal reference or let the system auto-generate a unique code.</p>
+                                    <label for="{{ form.flow_type.id_for_label }}" class="form-label">Business Flow *</label>
+                                    {{ form.flow_type }}
+                                    {% if form.flow_type.errors %}<div class="text-danger">{{ form.flow_type.errors }}</div>{% endif %}
+                                    <p class="field-hint">Choose LCL (rate per CBM) or FCL (rate per container).</p>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.client.id_for_label }}" class="form-label">Client *</label>
@@ -93,11 +93,11 @@
                                     {{ form.loading_date }}
                                     {% if form.loading_date.errors %}<div class="text-danger">{{ form.loading_date.errors }}</div>{% endif %}
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6" id="field-cbm">
                                     <label for="{{ form.weight.id_for_label }}" class="form-label">CBM</label>
                                     {{ form.weight }}
                                     {% if form.weight.errors %}<div class="text-danger">{{ form.weight.errors }}</div>{% endif %}
-                                    <p class="field-hint">Leave blank if CBM is pending confirmation.</p>
+                                    <p class="field-hint">Required for LCL shipments.</p>
                                 </div>
                             </div>
                         </div>
@@ -136,7 +136,7 @@
                                 <span class="section-eyebrow">03 · Cargo Description</span>
                                 <p class="section-subtitle">Specify commodity details, packaging notes, or special handling instructions.</p>
                             </div>
-                            <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description *</label>
+                            <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description</label>
                             {{ form.item_description }}
                             {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
                         </div>
@@ -155,4 +155,32 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function() {
+        function toggleLoadingFields() {
+            var flow = document.getElementById('id_flow_type');
+            if (!flow) return;
+
+            var cbmField = document.getElementById('field-cbm');
+            if (!cbmField) return;
+
+            if (flow.value === 'lcl') {
+                cbmField.style.display = '';
+            } else {
+                cbmField.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'id_flow_type') {
+                toggleLoadingFields();
+            }
+        });
+        document.addEventListener('DOMContentLoaded', toggleLoadingFields);
+        toggleLoadingFields();
+    })();
+</script>
 {% endblock %}

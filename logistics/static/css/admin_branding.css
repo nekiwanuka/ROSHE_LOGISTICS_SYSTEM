@@ -1,0 +1,125 @@
+/* Roshe Logistics - Django Admin Branding */
+
+:root {
+  --roshe-primary: #003366;
+  --roshe-accent: #f2cb3f;
+}
+
+/* Header background + text */
+#header {
+  background: var(--roshe-primary);
+}
+
+#header a:link,
+#header a:visited,
+#header a:hover,
+#header a:active {
+  color: #fff;
+}
+
+/* Brand lockup */
+.roshe-admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.roshe-admin-logo {
+  height: 34px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.roshe-admin-text {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* Accent highlights */
+#header #site-name {
+  padding-left: 6px;
+}
+
+div.breadcrumbs {
+  background: var(--roshe-accent);
+  color: #000;
+}
+
+div.breadcrumbs a {
+  color: #000;
+}
+
+/* Primary buttons */
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+a.button {
+  background: var(--roshe-primary);
+  border-color: var(--roshe-primary);
+}
+
+.button:hover,
+input[type=submit]:hover,
+input[type=button]:hover,
+.submit-row input:hover,
+a.button:hover {
+  background: var(--roshe-primary);
+  filter: brightness(0.92);
+}
+
+/* Links */
+#content a:link,
+#content a:visited {
+  color: var(--roshe-primary);
+}
+
+/* Selected module header */
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: var(--roshe-primary);
+}
+
+/* Selected row / focus accents */
+tr.selected {
+  background: rgba(242, 203, 63, 0.18);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--roshe-accent);
+  box-shadow: 0 0 0 2px rgba(242, 203, 63, 0.35);
+  outline: none;
+}
+
+/* Login page */
+.login #content-main {
+  width: min(420px, 92vw);
+}
+
+.roshe-login-header {
+  text-align: center;
+  margin: 8px 0 18px;
+}
+
+.roshe-login-logo {
+  height: 72px;
+  width: auto;
+  display: inline-block;
+}
+
+.roshe-login-title {
+  margin-top: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--roshe-primary);
+}
+
+.roshe-login-subtitle {
+  font-size: 12px;
+  color: #444;
+}

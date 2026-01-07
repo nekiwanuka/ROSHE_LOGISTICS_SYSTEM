@@ -1,0 +1,50 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
+{% block content %}
+<div id="content" class="colM">
+  <div id="content-main">
+    <div class="roshe-login-header">
+      <img src="{% static 'images/roshe_logo.svg' %}" alt="Roshe Logistics" class="roshe-login-logo" />
+      <div class="roshe-login-title">ROSHE LOGISTICS</div>
+      <div class="roshe-login-subtitle">Admin Portal</div>
+    </div>
+
+    {% if form.errors and not form.non_field_errors %}
+      <p class="errornote">
+        {% blocktranslate count counter=form.errors|length %}
+          Please correct the error below.
+        {% plural %}
+          Please correct the errors below.
+        {% endblocktranslate %}
+      </p>
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      {% for error in form.non_field_errors %}
+        <p class="errornote">{{ error }}</p>
+      {% endfor %}
+    {% endif %}
+
+    <form action="{% url 'admin:login' %}" method="post" id="login-form">
+      {% csrf_token %}
+      <div class="form-row">
+        <label for="id_username" class="required">{% translate 'Username' %}:</label>
+        {{ form.username }}
+      </div>
+      <div class="form-row">
+        <label for="id_password" class="required">{% translate 'Password' %}:</label>
+        {{ form.password }}
+      </div>
+      {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+      {% endif %}
+      <div class="submit-row">
+        <input type="submit" value="{% translate 'Log in' %}">
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

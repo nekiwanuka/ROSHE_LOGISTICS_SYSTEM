@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}Dashboard - Roshe Group Logistics Portal{% endblock %}
+{% block title %}Dashboard - ROSHE LOGISTICS{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -47,6 +47,37 @@
                 <div class="card-body dashboard-stat">
                     <h4><i class="bi bi-shield-check"></i> Pending Verifications</h4>
                     <p>{{ pending_verifications }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Quotations</h5>
+                    <p class="card-text text-muted mb-3">Create and manage quotations for cargo.</p>
+                    <a href="{% url 'quote_list' %}" class="btn btn-primary btn-sm">View Quotations</a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-earmark-pdf"></i> Invoices</h5>
+                    <p class="card-text text-muted mb-3">View invoices and generate shipment invoices.</p>
+                    <a href="{% url 'payment_list' %}" class="btn btn-primary btn-sm">View Invoices</a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-receipt"></i> Receipts</h5>
+                    <p class="card-text text-muted mb-3">View receipts and download approved PDFs.</p>
+                    <a href="{% url 'receipt_list' %}" class="btn btn-primary btn-sm">View Receipts</a>
                 </div>
             </div>
         </div>
@@ -108,7 +139,7 @@
                         <table class="table table-sm table-hover">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Loading ID</th>
+                                    <th>Container</th>
                                     <th>Client</th>
                                     <th>Destination</th>
                                 </tr>
@@ -118,7 +149,7 @@
                                 <tr>
                                     <td>
                                         <a href="{% url 'loading_detail' loading.id %}">
-                                            {{ loading.loading_id }}
+                                            {{ loading.container_number }}
                                         </a>
                                     </td>
                                     <td>{{ loading.client.name }}</td>
@@ -158,5 +189,30 @@
             </div>
         </div>
     </div>
+
+    {% if request.user.role == 'superuser' and enable_seed_tools %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-danger">
+                <div class="card-header text-danger">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Reset & Reseed Sample Data</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">This deletes all data except users, then recreates fresh sample data.</p>
+                    <form method="post" action="{% url 'dashboard_reset_seed' %}" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Username (owner of seeded records)</label>
+                            <input type="text" name="created_by" class="form-control" placeholder="e.g. admin" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <button type="submit" class="btn btn-danger w-100">Reset & Reseed</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

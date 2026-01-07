@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | ROSHE LOGISTICS{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="icon" href="{% static 'images/favicon.ico' %}?v={% now 'YmdHi' %}" type="image/x-icon">
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}" class="roshe-admin-brand">
+    <img src="{% static 'images/roshe_logo.svg' %}" alt="Roshe Logistics" class="roshe-admin-logo" />
+    <span class="roshe-admin-text">ROSHE LOGISTICS</span>
+  </a>
+</h1>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_branding.css' %}">
+{% endblock %}

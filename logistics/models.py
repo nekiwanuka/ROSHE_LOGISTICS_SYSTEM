@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
     """Custom user model with role-based access"""
     ROLE_CHOICES = (
         ('superuser', 'Superuser (Admin)'),
+        ('managing_director', 'Managing Director'),
         ('data_entry', 'Data Entry User'),
     )
     
@@ -30,6 +31,9 @@ class CustomUser(AbstractUser):
     
     def is_superuser_role(self):
         return self.role == 'superuser'
+
+    def is_managing_director_role(self):
+        return self.role == 'managing_director'
     
     def is_data_entry_role(self):
         return self.role == 'data_entry'
@@ -49,6 +53,74 @@ def _random_code(length=10):
 
 def _random_digits(length=10):
     return ''.join(secrets.choice(string.digits) for _ in range(length))
+
+
+def _normalize_container_number(value):
+    """Normalize container numbers consistently.
+
+    Users often type in lower-case or with spaces; store a clean, uppercase value.
+    """
+    if value is None:
+        return value
+    text = str(value).strip()
+    if not text:
+        return text
+    text = ''.join(text.split())
+    return text.upper()
+
+
+def _normalize_title_case(value):
+    """Capitalize each word (Title Case), while preserving acronyms.
+
+    Examples:
+    - "uae - dubai" -> "UAE - Dubai"
+    - "cma cgm" -> "CMA CGM"
+    - "mombasa" -> "Mombasa"
+    """
+    if value is None:
+        return value
+
+    raw = ' '.join(str(value).strip().split())
+    if not raw:
+        return raw
+
+    def _format_token(token: str) -> str:
+        if not token:
+            return token
+
+        # Preserve tokens that are already fully uppercase (letters/digits).
+        if token == token.upper() and token != token.lower():
+            return token
+
+        # Split common separators while keeping them.
+        for sep in ('/', '-', '.'):
+            if sep in token:
+                parts = token.split(sep)
+                return sep.join(_format_token(p) for p in parts)
+
+        # Treat short alphabetic tokens as acronyms.
+        if token.isalpha() and 2 <= len(token) <= 4:
+            return token.upper()
+
+        # Default: normal title-casing for a word.
+        return token[:1].upper() + token[1:].lower()
+
+    words = raw.split(' ')
+    return ' '.join(_format_token(w) for w in words)
+
+
+def _normalize_sentence_case(value):
+    """Capitalize only the first letter of the whole string (sentence case)."""
+    if value is None:
+        return value
+    text = ' '.join(str(value).strip().split())
+    if not text:
+        return text
+    lower = text.lower()
+    for i, ch in enumerate(lower):
+        if ch.isalpha():
+            return lower[:i] + ch.upper() + lower[i + 1:]
+    return lower
 
 
 class Client(models.Model):
@@ -82,6 +154,14 @@ class Client(models.Model):
                 return candidate
 
     def save(self, *args, **kwargs):
+        # Store name-like fields in uppercase to match business rules.
+        if self.name is not None:
+            self.name = str(self.name).strip().upper()
+        if self.company_name is not None:
+            self.company_name = str(self.company_name).strip().upper()
+        if self.contact_person is not None:
+            self.contact_person = str(self.contact_person).strip().upper()
+
         if not self.client_id:
             self.client_id = self.generate_unique_id()
         super().save(*args, **kwargs)
@@ -89,10 +169,16 @@ class Client(models.Model):
 
 class Loading(models.Model):
     """Cargo/Loading management model"""
-    loading_id = models.CharField(max_length=50, unique=True)
+
+    FLOW_CHOICES = (
+        ('lcl', 'LCL (Less Container Load)'),
+        ('fcl', 'FCL (Full Container Load)'),
+    )
+
+    flow_type = models.CharField(max_length=10, choices=FLOW_CHOICES, default='fcl')
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='loadings')
     loading_date = models.DateTimeField()
-    item_description = models.TextField()
+    item_description = models.TextField(blank=True, null=True)
     # Stored as a decimal; the business meaning is CBM (volume).
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     container_number = models.CharField(max_length=100)
@@ -107,7 +193,14 @@ class Loading(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.loading_id} - {self.client.name}"
+        label = self.container_number or f"Cargo #{self.pk}"
+        return f"{label} - {self.client.client_id} - {self.client.name}"
+
+    def save(self, *args, **kwargs):
+        self.container_number = _normalize_container_number(self.container_number)
+        self.origin = _normalize_sentence_case(self.origin)
+        self.destination = _normalize_sentence_case(self.destination)
+        super().save(*args, **kwargs)
 
 
 class Transit(models.Model):
@@ -117,11 +210,17 @@ class Transit(models.Model):
         ('in_transit', 'In Transit'),
         ('arrived', 'Arrived'),
     )
-    
-    loading = models.OneToOneField(Loading, on_delete=models.CASCADE, related_name='transit')
-    vessel_name = models.CharField(max_length=255)
+
+    ETA_LOCATION_CHOICES = (
+        ('kampala', 'Kampala'),
+        ('mombasa', 'Mombasa'),
+    )
+
+    shipping_line = models.CharField(max_length=255, blank=True)
+    container_number = models.CharField(max_length=100, blank=True)
     boarding_date = models.DateTimeField()
-    eta_kampala = models.DateTimeField()  # Estimated Time of Arrival
+    eta_location = models.CharField(max_length=20, choices=ETA_LOCATION_CHOICES, blank=True)
+    eta = models.DateTimeField(null=True, blank=True)  # Estimated Time of Arrival
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='awaiting')
     remarks = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(CustomUser, on_delete=models.PROTECT, related_name='created_transits')
@@ -132,19 +231,27 @@ class Transit(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.vessel_name} - {self.loading.loading_id}"
+        return f"{self.shipping_line} - {self.container_number}"
+
+    def save(self, *args, **kwargs):
+        self.container_number = _normalize_container_number(self.container_number)
+        self.shipping_line = _normalize_title_case(self.shipping_line)
+        super().save(*args, **kwargs)
 
 
 class Payment(models.Model):
     """Payment management model"""
     PAYMENT_METHOD_CHOICES = (
         ('cash', 'Cash'),
-        ('bank_transfer', 'Bank Transfer'),
+        ('bank', 'Bank'),
+        ('mobile_money', 'Mobile Money'),
         ('cheque', 'Cheque'),
-        ('other', 'Other'),
     )
     
     loading = models.OneToOneField(Loading, on_delete=models.CASCADE, related_name='payment')
+    rate_per_cbm = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rate_per_container = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    document_handling_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0, blank=True)
     amount_charged = models.DecimalField(max_digits=12, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     balance = models.DecimalField(max_digits=12, decimal_places=2)
@@ -159,13 +266,31 @@ class Payment(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"Payment for {self.loading.loading_id}"
+        label = self.loading.container_number or f"Cargo #{self.loading.pk}"
+        return f"Payment for {label}"
     
     @property
     def invoice_number(self):
-        if self.id:
-            return f"INV-{self.id:05d}"
-        return "INV-DRAFT"
+        """Return shipment invoice number formatted as YYMM###.
+
+        - YY: last two digits of year
+        - MM: two-digit month
+        - ###: sequence number within that month
+        """
+        if not self.pk:
+            return "DRAFT"
+
+        created_at = self.created_at or timezone.now()
+        yy = created_at.strftime('%y')
+        mm = created_at.strftime('%m')
+        monthly_sequence = (
+            self.__class__.objects.filter(
+                created_at__year=created_at.year,
+                created_at__month=created_at.month,
+                pk__lte=self.pk,
+            ).count()
+        )
+        return f"{yy}{mm}{monthly_sequence:03d}"
     
     def refresh_totals(self):
         """Recalculate amount paid/balance from related transactions."""
@@ -180,8 +305,95 @@ class Payment(models.Model):
         self.balance = balance
 
     def save(self, *args, **kwargs):
+        # Automatically calculate amount charged from rate fields when possible.
+        fee = self.document_handling_fee or 0
+        freight_amount = None
+        flow = getattr(self.loading, 'flow_type', None)
+        if flow == 'lcl' and self.rate_per_cbm is not None and self.loading.weight is not None:
+            freight_amount = self.loading.weight * self.rate_per_cbm
+        elif flow == 'fcl' and self.rate_per_container is not None:
+            freight_amount = self.rate_per_container
+
+        if freight_amount is not None:
+            self.amount_charged = freight_amount + fee
+
         # Automatically calculate balance
         self.balance = self.amount_charged - self.amount_paid
+        super().save(*args, **kwargs)
+
+
+class Quote(models.Model):
+    """Client quotation that can be converted into a cargo record + invoice.
+
+    Quotes should not require creating a Cargo (Loading) upfront.
+    """
+
+    STATUS_CHOICES = (
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('accepted', 'Accepted'),
+        ('converted', 'Converted to Invoice'),
+    )
+
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.PROTECT,
+        related_name='quotes',
+        null=True,
+        blank=True,
+    )
+    flow_type = models.CharField(max_length=10, choices=Loading.FLOW_CHOICES, default='fcl')
+
+    # Shipment details captured at quotation stage (from client).
+    container_number = models.CharField(max_length=100, null=True, blank=True)
+    container_size = models.CharField(max_length=20, choices=CONTAINER_SIZE_CHOICES, null=True, blank=True)
+    origin = models.CharField(max_length=255, null=True, blank=True)
+    destination = models.CharField(max_length=255, null=True, blank=True)
+    loading_date = models.DateTimeField(null=True, blank=True)
+    item_description = models.TextField(blank=True, null=True)
+
+    # LCL only (CBM provided by client at quotation stage).
+    cbm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    # Optional link once a cargo record has been created from the quote.
+    loading = models.OneToOneField(
+        Loading,
+        on_delete=models.SET_NULL,
+        related_name='quote',
+        null=True,
+        blank=True,
+    )
+    rate_per_cbm = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rate_per_container = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    document_handling_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0, blank=True)
+    amount_quoted = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(CustomUser, on_delete=models.PROTECT, related_name='created_quotes')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        label = self.container_number or f"Quote #{self.pk}"
+        return f"Quote for {label}"
+
+    def save(self, *args, **kwargs):
+        self.container_number = _normalize_container_number(self.container_number)
+        self.origin = _normalize_sentence_case(self.origin)
+        self.destination = _normalize_sentence_case(self.destination)
+        fee = self.document_handling_fee or 0
+        quoted = None
+        if self.flow_type == 'lcl' and self.rate_per_cbm is not None and self.cbm is not None:
+            quoted = (self.cbm * self.rate_per_cbm) + fee
+        elif self.flow_type == 'fcl' and self.rate_per_container is not None:
+            quoted = self.rate_per_container + fee
+
+        if quoted is not None:
+            self.amount_quoted = quoted
+
         super().save(*args, **kwargs)
 
 
@@ -218,7 +430,8 @@ class PaymentTransaction(models.Model):
         ordering = ['-payment_date']
     
     def __str__(self):
-        return f"{self.receipt_number} - {self.payment.loading.loading_id}"
+        label = self.payment.loading.container_number or f"Cargo #{self.payment.loading.pk}"
+        return f"{self.receipt_number} - {label}"
     
     @property
     def receipt_number(self):
@@ -267,6 +480,10 @@ class ContainerReturn(models.Model):
     def __str__(self):
         return f"{self.container_number} - {self.get_status_display()}"
 
+    def save(self, *args, **kwargs):
+        self.container_number = _normalize_container_number(self.container_number)
+        super().save(*args, **kwargs)
+
 
 class AuditLog(models.Model):
     """Audit trail for tracking changes"""
@@ -280,6 +497,7 @@ class AuditLog(models.Model):
         ('client', 'Client'),
         ('loading', 'Loading'),
         ('transit', 'Transit'),
+        ('quote', 'Quotation'),
         ('payment', 'Payment'),
         ('container_return', 'Container Return'),
         ('user', 'User'),

@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}{% if title %}{{ title }}{% else %}Transit{% endif %} - Roshe Group Logistics Portal{% endblock %}
+{% block title %}{% if title %}{{ title }}{% else %}Transit{% endif %} - ROSHE LOGISTICS{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -15,15 +15,15 @@
                         {% csrf_token %}
                         
                         <div class="mb-3">
-                            <label for="{{ form.loading.id_for_label }}" class="form-label">Loading *</label>
-                            {{ form.loading }}
-                            {% if form.loading.errors %}<div class="text-danger">{{ form.loading.errors }}</div>{% endif %}
+                            <label for="{{ form.shipping_line.id_for_label }}" class="form-label">Shipping Line *</label>
+                            {{ form.shipping_line }}
+                            {% if form.shipping_line.errors %}<div class="text-danger">{{ form.shipping_line.errors }}</div>{% endif %}
                         </div>
 
                         <div class="mb-3">
-                            <label for="{{ form.vessel_name.id_for_label }}" class="form-label">Vessel Name *</label>
-                            {{ form.vessel_name }}
-                            {% if form.vessel_name.errors %}<div class="text-danger">{{ form.vessel_name.errors }}</div>{% endif %}
+                            <label for="{{ form.container_number.id_for_label }}" class="form-label">Container Number *</label>
+                            {{ form.container_number }}
+                            {% if form.container_number.errors %}<div class="text-danger">{{ form.container_number.errors }}</div>{% endif %}
                         </div>
 
                         <div class="row">
@@ -36,11 +36,17 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="{{ form.eta_kampala.id_for_label }}" class="form-label">ETA Kampala *</label>
-                                    {{ form.eta_kampala }}
-                                    {% if form.eta_kampala.errors %}<div class="text-danger">{{ form.eta_kampala.errors }}</div>{% endif %}
+                                    <label for="{{ form.eta_location.id_for_label }}" class="form-label">ETA Location *</label>
+                                    {{ form.eta_location }}
+                                    {% if form.eta_location.errors %}<div class="text-danger">{{ form.eta_location.errors }}</div>{% endif %}
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.eta.id_for_label }}" class="form-label">ETA *</label>
+                            {{ form.eta }}
+                            {% if form.eta.errors %}<div class="text-danger">{{ form.eta.errors }}</div>{% endif %}
                         </div>
 
                         <div class="mb-3">

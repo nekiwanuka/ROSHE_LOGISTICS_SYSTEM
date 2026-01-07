@@ -1,8 +1,8 @@
-/* Roshe Group Branding */
+/* Roshe Logistics Branding */
 
 :root {
   --roshe-dark-blue: #003366;
-  --roshe-yellow: #FFD700;
+  --roshe-yellow: #f2cb3f;
   --roshe-white: #FFFFFF;
   --roshe-light-gray: #F5F5F5;
 }
@@ -45,8 +45,8 @@
 }
 
 .btn-roshe-accent:hover {
-  background-color: #e6c200;
-  border-color: #e6c200;
+  background-color: #d9b83a;
+  border-color: #d9b83a;
   color: var(--roshe-dark-blue);
 }
 

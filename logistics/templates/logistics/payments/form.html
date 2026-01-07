@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}{% if title %}{{ title }}{% else %}Payment{% endif %} - Roshe Group Logistics Portal{% endblock %}
+{% block title %}{% if title %}{{ title }}{% else %}Invoice{% endif %} - ROSHE LOGISTICS{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -8,37 +8,81 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="bi bi-cash-coin"></i> {{ title }}</h3>
+                    <h3><i class="bi bi-file-earmark-pdf"></i> {{ title }}</h3>
                 </div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
                         
                         <div class="mb-3">
-                            <label for="{{ form.loading.id_for_label }}" class="form-label">Loading *</label>
-                            {{ form.loading }}
+                            <label for="{{ form.loading.id_for_label }}" class="form-label">Cargo *</label>
+                            <select
+                                name="{{ form.loading.html_name }}"
+                                id="{{ form.loading.id_for_label }}"
+                                class="form-control"
+                                data-filterable="1"
+                                data-filter-min="1"
+                                data-filter-placeholder="Search cargo / client / container (type to filter)"
+                                required
+                            >
+                                <option value="">---------</option>
+                                {% for obj in form.loading.field.queryset %}
+                                    <option
+                                        value="{{ obj.pk }}"
+                                        data-flow-type="{{ obj.flow_type|default:'' }}"
+                                        {% if form.loading.value|stringformat:"s" == obj.pk|stringformat:"s" %}selected{% endif %}
+                                    >
+                                        {{ obj.container_number }} - {{ obj.client.client_id }} - {{ obj.client.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
                             {% if form.loading.errors %}<div class="text-danger">{{ form.loading.errors }}</div>{% endif %}
                         </div>
 
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.amount_charged.id_for_label }}" class="form-label">Amount Charged *</label>
-                                    {{ form.amount_charged }}
-                                    {% if form.amount_charged.errors %}<div class="text-danger">{{ form.amount_charged.errors }}</div>{% endif %}
+                                <div class="mb-3" id="rate-per-cbm-group">
+                                    <label for="{{ form.rate_per_cbm.id_for_label }}" class="form-label">Rate per CBM</label>
+                                    {{ form.rate_per_cbm }}
+                                    {% if form.rate_per_cbm.errors %}<div class="text-danger">{{ form.rate_per_cbm.errors }}</div>{% endif %}
+                                    <small class="text-muted">Use this for LCL cargo.</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Amount Paid (auto)</label>
-                                    {% if payment %}
-                                    <input type="text" class="form-control" value="${{ payment.amount_paid|floatformat:2 }}" readonly>
-                                    {% else %}
-                                    <input type="text" class="form-control" value="$0.00" readonly>
-                                    {% endif %}
-                                    <small class="text-muted">Updates automatically when you record payments.</small>
+                                <div class="mb-3" id="rate-per-container-group">
+                                    <label for="{{ form.rate_per_container.id_for_label }}" class="form-label">Rate per Container</label>
+                                    {{ form.rate_per_container }}
+                                    {% if form.rate_per_container.errors %}<div class="text-danger">{{ form.rate_per_container.errors }}</div>{% endif %}
+                                    <small class="text-muted">Use this for FCL cargo.</small>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.document_handling_fee.id_for_label }}" class="form-label">Document &amp; Handling Fees</label>
+                            {{ form.document_handling_fee }}
+                            {% if form.document_handling_fee.errors %}<div class="text-danger">{{ form.document_handling_fee.errors }}</div>{% endif %}
+                            <small class="text-muted">Optional extra charges to include on the invoice.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Amount Charged (auto)</label>
+                            {% if payment %}
+                            <input type="text" class="form-control" value="${{ payment.amount_charged|floatformat:2 }}" readonly>
+                            {% else %}
+                            <input type="text" class="form-control" value="Will calculate after saving" readonly>
+                            {% endif %}
+                            <small class="text-muted">Calculated from the cargo flow + rate.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Amount Paid (auto)</label>
+                            {% if payment %}
+                            <input type="text" class="form-control" value="${{ payment.amount_paid|floatformat:2 }}" readonly>
+                            {% else %}
+                            <input type="text" class="form-control" value="$0.00" readonly>
+                            {% endif %}
+                            <small class="text-muted">Updates automatically when you record payments.</small>
                         </div>
 
                         <div class="row">
@@ -69,7 +113,7 @@
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-circle"></i> Save Payment
+                                <i class="bi bi-check-circle"></i> Save Invoice
                             </button>
                             {% if payment %}
                             <a href="{% url 'payment_invoice' payment.id %}" class="btn btn-outline-primary">
@@ -83,4 +127,50 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const loadingSelect = document.getElementById('{{ form.loading.id_for_label }}');
+        const cbmGroup = document.getElementById('rate-per-cbm-group');
+        const containerGroup = document.getElementById('rate-per-container-group');
+
+        const cbmInput = document.getElementById('{{ form.rate_per_cbm.id_for_label }}');
+        const containerInput = document.getElementById('{{ form.rate_per_container.id_for_label }}');
+
+        function setGroupEnabled(groupEl, inputEl, enabled) {
+            if (!groupEl || !inputEl) return;
+            groupEl.style.display = enabled ? '' : 'none';
+            inputEl.disabled = !enabled;
+            inputEl.required = enabled;
+            if (!enabled) {
+                inputEl.value = '';
+            }
+        }
+
+        function updateRateFields() {
+            if (!loadingSelect) return;
+            const selected = loadingSelect.options[loadingSelect.selectedIndex];
+            const flow = (selected && selected.dataset && selected.dataset.flowType) ? selected.dataset.flowType : '';
+
+            if (flow === 'lcl') {
+                setGroupEnabled(cbmGroup, cbmInput, true);
+                setGroupEnabled(containerGroup, containerInput, false);
+            } else if (flow === 'fcl') {
+                setGroupEnabled(cbmGroup, cbmInput, false);
+                setGroupEnabled(containerGroup, containerInput, true);
+            } else {
+                // No cargo selected yet (or legacy data) -> show both, no browser-required.
+                if (cbmGroup) cbmGroup.style.display = '';
+                if (containerGroup) containerGroup.style.display = '';
+                if (cbmInput) { cbmInput.disabled = false; cbmInput.required = false; }
+                if (containerInput) { containerInput.disabled = false; containerInput.required = false; }
+            }
+        }
+
+        if (loadingSelect) {
+            loadingSelect.addEventListener('change', updateRateFields);
+        }
+        updateRateFields();
+    })();
+</script>
 {% endblock %}

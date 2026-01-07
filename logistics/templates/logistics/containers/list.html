@@ -1,6 +1,6 @@
 {% extends "logistics/base.html" %}
 
-{% block title %}Container Returns - Roshe Group Logistics Portal{% endblock %}
+{% block title %}Container Returns - ROSHE LOGISTICS{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -35,7 +35,7 @@
                     <tr>
                         <th>Container Number</th>
                         <th>Container Size</th>
-                        <th>Loading ID</th>
+                        <th>Cargo Container</th>
                         <th>Client</th>
                         <th>Return Date</th>
                         <th>Condition</th>
@@ -58,7 +58,7 @@
                                 {% endif %}
                             {% endwith %}
                         </td>
-                        <td><a href="{% url 'loading_detail' container.loading.id %}">{{ container.loading.loading_id }}</a></td>
+                        <td><a href="{% url 'loading_detail' container.loading.id %}">{{ container.loading.container_number }}</a></td>
                         <td>{{ container.loading.client.name }}</td>
                         <td>{{ container.return_date|date:"Y-m-d" }}</td>
                         <td>
@@ -80,16 +80,14 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.role == 'superuser' %}
                             <a href="{% url 'container_return_update' container.id %}" class="btn btn-sm btn-warning">
                                 <i class="bi bi-pencil"></i> Edit
                             </a>
-                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No container returns found</td>
+                        <td colspan="8" class="text-center text-muted py-4">No container returns found</td>
                     </tr>
                     {% endfor %}
                 </tbody>

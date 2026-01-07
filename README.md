@@ -76,7 +76,7 @@ setup_interactive.bat
 This interactive wizard allows you to:
 - Choose which features to install
 - Select optional modules
-- Install Roshe Group logo & branding
+- Install Roshe Logistics logo & branding
 - Create desktop shortcut
 - Create admin account
 
@@ -131,7 +131,7 @@ Copy the contents of `dist/RosheLogistics/` plus `dist/FirstRunSetup/FirstRunSet
 - 📊 Audit Logging & Activity Tracking
 - 📈 Reports Dashboard
 - 📄 CSV Export
-- 🎨 Roshe Group Logo & Branding
+- 🎨 Roshe Logistics Logo & Branding
 - 🔗 Desktop Shortcut
 
 ## 🖥️ Running the Application
@@ -142,7 +142,7 @@ python run.py
 ```
 
 ### Or use the desktop shortcut (if created during setup)
-Double-click "Roshe Group Logistics Portal" shortcut on your desktop
+Double-click "Roshe Logistics Portal" shortcut on your desktop
 
 ### Development Mode
 ```bash
@@ -335,14 +335,14 @@ sys.argv = ['manage.py', 'runserver', '127.0.0.1:8001']
 
 ## 📧 Support
 
-**Roshe Group Contact Information:**
+**Roshe Logistics Contact Information:**
 - Phone: +256 788 239000 | +8613416137544
 - Email: info@roshegroup.com | roshegroup@gmail.com
 - Address: Plot 13 Mukwano Courts, Buganda Road, floor 2 Room 201–202 I
 
 ## 📄 License & Copyright
 
-© 2025 Roshe Group. All Rights Reserved.
+© 2025 Roshe Logistics. All Rights Reserved.
 
 This system is proprietary and confidential. Unauthorized distribution is prohibited.
 

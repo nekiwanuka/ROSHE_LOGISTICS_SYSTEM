@@ -19,6 +19,10 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool)
 
+# Seed/reset tools are for local development only. Keep disabled in production.
+# Set ENABLE_SEED_TOOLS=True explicitly if you really need it.
+ENABLE_SEED_TOOLS = config("ENABLE_SEED_TOOLS", default=DEBUG, cast=bool)
+
 # Developer convenience: allow `manage.py runserver` to behave like a typical
 # development setup (serving static files, detailed errors), even if a
 # production-like .env has DEBUG=False.
@@ -71,6 +75,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'logistics.middleware.BlockAdminForManagingDirectorMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -229,9 +234,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'logistics' / 'static',
-]
+
+# NOTE:
+# The `logistics` app already provides its static assets under `logistics/static/`.
+# Listing that same folder in STATICFILES_DIRS causes duplicate files during
+# `collectstatic` (the first encountered wins, later ones are ignored).
+# Only add STATICFILES_DIRS if you create a separate, non-app static folder.
 
 # Media files
 MEDIA_URL = '/media/'
@@ -251,6 +259,21 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_SAVE_EVERY_REQUEST = False
 
+# Email (SMTP)
+# Configure these in .env / cPanel environment variables.
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='').strip()
+EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# cPanel typically recommends SSL on 465.
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
+
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER).strip() or EMAIL_HOST_USER
+SERVER_EMAIL = config('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL).strip() or DEFAULT_FROM_EMAIL
+
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -267,3 +290,31 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# Email (SMTP)
+#
+# To send invoice/receipt PDFs as attachments, configure these in your .env.
+# Example (Gmail):
+#   EMAIL_HOST=smtp.gmail.com
+#   EMAIL_PORT=587
+#   EMAIL_USE_TLS=True
+#   EMAIL_HOST_USER=you@gmail.com
+#   EMAIL_HOST_PASSWORD=your_app_password
+#   DEFAULT_FROM_EMAIL=ROSHE LOGISTICS <you@gmail.com>
+
+EMAIL_HOST = config('EMAIL_HOST', default='').strip()
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='ROSHE LOGISTICS <no-reply@localhost>')
+
+# If no SMTP host is configured, fall back to console backend (prints emails to terminal).
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default=(
+        'django.core.mail.backends.smtp.EmailBackend'
+        if EMAIL_HOST
+        else 'django.core.mail.backends.console.EmailBackend'
+    ),
+)

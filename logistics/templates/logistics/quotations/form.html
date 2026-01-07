@@ -1,0 +1,165 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}{{ title }} - ROSHE LOGISTICS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-file-earmark-text"></i> {{ title }}</h1>
+        <a href="{% url 'quote_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="alert alert-info d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            <div class="fw-semibold">Quotation pricing rules</div>
+            <div class="small">
+                LCL (Less Container Load): quote is based on <strong>CBM</strong> → Rate per CBM × Cargo CBM.<br>
+                FCL (Full Container Load): quote is per <strong>container</strong> → Rate per Container.
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Client</label>
+                        {{ form.client }}
+                        {% if form.client.errors %}<div class="text-danger small">{{ form.client.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Flow Type</label>
+                        {{ form.flow_type }}
+                        {% if form.flow_type.errors %}<div class="text-danger small">{{ form.flow_type.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Container #</label>
+                        {{ form.container_number }}
+                        {% if form.container_number.errors %}<div class="text-danger small">{{ form.container_number.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Origin</label>
+                        {{ form.origin }}
+                        {% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Destination</label>
+                        {{ form.destination }}
+                        {% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3" id="field-loading-date">
+                        <label class="form-label">Expected Loading Date</label>
+                        {{ form.loading_date }}
+                        {% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3" id="field-container-size">
+                        <label class="form-label">Container Size (FCL only)</label>
+                        {{ form.container_size }}
+                        {% if form.container_size.errors %}<div class="text-danger small">{{ form.container_size.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3" id="field-cbm">
+                        <label class="form-label">Client CBM (LCL only)</label>
+                        {{ form.cbm }}
+                        <div class="form-text">CBM is the cargo volume provided by the client for quotation.</div>
+                        {% if form.cbm.errors %}<div class="text-danger small">{{ form.cbm.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3" id="field-rate-cbm">
+                        <label class="form-label">Cost per CBM (LCL)</label>
+                        {{ form.rate_per_cbm }}
+                        {% if form.rate_per_cbm.errors %}<div class="text-danger small">{{ form.rate_per_cbm.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3" id="field-rate-container">
+                        <label class="form-label">Cost per Container (FCL)</label>
+                        {{ form.rate_per_container }}
+                        {% if form.rate_per_container.errors %}<div class="text-danger small">{{ form.rate_per_container.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Document & Handling Fee</label>
+                        {{ form.document_handling_fee }}
+                        {% if form.document_handling_fee.errors %}<div class="text-danger small">{{ form.document_handling_fee.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Status</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}<div class="text-danger small">{{ form.status.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Item Description (optional)</label>
+                    {{ form.item_description }}
+                    {% if form.item_description.errors %}<div class="text-danger small">{{ form.item_description.errors }}</div>{% endif %}
+                </div>
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-warning">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function() {
+        function toggleQuoteFields() {
+            var flow = document.getElementById('id_flow_type');
+            if (!flow) return;
+            var val = flow.value;
+
+            var cbm = document.getElementById('field-cbm');
+            var rateCbm = document.getElementById('field-rate-cbm');
+            var size = document.getElementById('field-container-size');
+            var rateContainer = document.getElementById('field-rate-container');
+
+            if (val === 'lcl') {
+                if (cbm) cbm.style.display = '';
+                if (rateCbm) rateCbm.style.display = '';
+                if (size) size.style.display = 'none';
+                if (rateContainer) rateContainer.style.display = 'none';
+            } else {
+                if (cbm) cbm.style.display = 'none';
+                if (rateCbm) rateCbm.style.display = 'none';
+                if (size) size.style.display = '';
+                if (rateContainer) rateContainer.style.display = '';
+            }
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'id_flow_type') {
+                toggleQuoteFields();
+            }
+        });
+        document.addEventListener('DOMContentLoaded', toggleQuoteFields);
+        toggleQuoteFields();
+    })();
+</script>
+{% endblock %}

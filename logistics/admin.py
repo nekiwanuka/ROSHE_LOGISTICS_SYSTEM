@@ -3,7 +3,7 @@ Django admin configuration for the logistics app
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Client, Loading, Transit, Payment, ContainerReturn, AuditLog
+from .models import CustomUser, Client, Loading, Transit, Payment, Quote, ContainerReturn, AuditLog
 
 
 @admin.register(CustomUser)
@@ -40,17 +40,17 @@ class ClientAdmin(admin.ModelAdmin):
 @admin.register(Loading)
 class LoadingAdmin(admin.ModelAdmin):
     """Loading admin"""
-    list_display = ('loading_id', 'client', 'loading_date', 'origin', 'destination')
-    search_fields = ('loading_id', 'client__name')
-    list_filter = ('loading_date', 'origin', 'destination')
+    list_display = ('container_number', 'flow_type', 'client', 'loading_date', 'origin', 'destination')
+    search_fields = ('container_number', 'client__name')
+    list_filter = ('flow_type', 'loading_date', 'origin', 'destination')
     readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(Transit)
 class TransitAdmin(admin.ModelAdmin):
     """Transit admin"""
-    list_display = ('vessel_name', 'loading', 'boarding_date', 'eta_kampala', 'status')
-    search_fields = ('vessel_name', 'loading__loading_id')
+    list_display = ('shipping_line', 'container_number', 'boarding_date', 'eta_location', 'eta', 'status')
+    search_fields = ('shipping_line', 'container_number')
     list_filter = ('status', 'boarding_date')
     readonly_fields = ('created_at', 'updated_at')
 
@@ -59,16 +59,25 @@ class TransitAdmin(admin.ModelAdmin):
 class PaymentAdmin(admin.ModelAdmin):
     """Payment admin"""
     list_display = ('loading', 'amount_charged', 'amount_paid', 'balance', 'payment_date')
-    search_fields = ('loading__loading_id', 'receipt_number')
+    search_fields = ('loading__container_number', 'receipt_number')
     list_filter = ('payment_date', 'payment_method')
     readonly_fields = ('balance', 'created_at', 'updated_at')
+
+
+@admin.register(Quote)
+class QuoteAdmin(admin.ModelAdmin):
+    """Quote admin"""
+    list_display = ('client', 'container_number', 'flow_type', 'amount_quoted', 'status', 'created_at')
+    search_fields = ('container_number', 'client__name', 'origin', 'destination')
+    list_filter = ('status', 'created_at')
+    readonly_fields = ('amount_quoted', 'created_at', 'updated_at')
 
 
 @admin.register(ContainerReturn)
 class ContainerReturnAdmin(admin.ModelAdmin):
     """Container return admin"""
     list_display = ('container_number', 'loading', 'return_date', 'condition', 'status')
-    search_fields = ('container_number', 'loading__loading_id')
+    search_fields = ('container_number', 'loading__container_number')
     list_filter = ('status', 'condition', 'return_date')
     readonly_fields = ('created_at', 'updated_at')
 

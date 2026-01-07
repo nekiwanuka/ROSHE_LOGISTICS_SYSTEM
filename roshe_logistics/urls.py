@@ -7,6 +7,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic.base import RedirectView
 
+
+admin.site.site_header = 'ROSHE LOGISTICS'
+admin.site.site_title = 'ROSHE LOGISTICS Admin'
+admin.site.index_title = 'Administration'
+
 urlpatterns = [
     path(
         'favicon.ico',

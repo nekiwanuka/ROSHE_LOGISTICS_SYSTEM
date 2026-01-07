@@ -12,6 +12,7 @@ urlpatterns = [
     
     # Dashboard
     path('', views.dashboard, name='dashboard'),
+    path('dashboard/reset-seed/', views.dashboard_reset_keep_users_and_seed, name='dashboard_reset_seed'),
     
     # Users
     path('users/', views.user_list, name='user_list'),
@@ -33,7 +34,6 @@ urlpatterns = [
     # Transits
     path('transits/', views.transit_list, name='transit_list'),
     path('transits/create/', views.transit_create, name='transit_create'),
-    path('transits/create/<int:loading_id>/', views.transit_create, name='transit_create_with_loading'),
     path('transits/<int:pk>/update/', views.transit_update, name='transit_update'),
     
     # Payments
@@ -43,11 +43,29 @@ urlpatterns = [
     path('payments/<int:pk>/', views.payment_detail, name='payment_detail'),
     path('payments/<int:pk>/update/', views.payment_update, name='payment_update'),
     path('payments/<int:pk>/invoice/', views.payment_invoice, name='payment_invoice'),
+    path('payments/<int:pk>/invoice/email/', views.payment_invoice_email, name='payment_invoice_email'),
     path(
         'payments/transactions/<int:transaction_id>/receipt/',
         views.payment_receipt,
         name='payment_receipt',
     ),
+    path(
+        'payments/transactions/<int:transaction_id>/receipt/email/',
+        views.payment_receipt_email,
+        name='payment_receipt_email',
+    ),
+
+        # Quotations
+        path('quotations/', views.quote_list, name='quote_list'),
+        path('quotations/create/', views.quote_create, name='quote_create'),
+        path('quotations/<int:quote_id>/', views.quote_detail, name='quote_detail'),
+        path('quotations/<int:quote_id>/pdf/', views.quote_pdf, name='quote_pdf'),
+        path('quotations/<int:quote_id>/edit/', views.quote_update, name='quote_update'),
+        path('quotations/<int:quote_id>/delete/', views.quote_delete, name='quote_delete'),
+        path('quotations/<int:quote_id>/convert/', views.quote_convert_to_invoice, name='quote_convert_to_invoice'),
+
+        # Receipts
+        path('receipts/', views.receipt_list, name='receipt_list'),
     
     # Container Returns
     path('containers/', views.container_return_list, name='container_return_list'),
@@ -64,6 +82,8 @@ urlpatterns = [
     path('export/payments/pdf/', views.export_payments_pdf, name='export_payments_pdf'),
     path('export/containers/', views.export_containers_csv, name='export_containers_csv'),
     path('export/containers/pdf/', views.export_containers_pdf, name='export_containers_pdf'),
+    path('export/quotations/', views.export_quotes_csv, name='export_quotes_csv'),
+    path('export/quotations/pdf/', views.export_quotes_pdf, name='export_quotes_pdf'),
     
     # Audit Logs
     path('audit-logs/', views.audit_log_view, name='audit_logs'),
