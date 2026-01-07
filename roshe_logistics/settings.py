@@ -4,10 +4,15 @@ Roshe Logistics Management System (Web)
 """
 import sys
 from pathlib import Path
-from decouple import Csv, config
+from decouple import AutoConfig, Csv
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Always load configuration from a .env located in the project root (BASE_DIR).
+# This avoids surprises under Passenger/cPanel where the process working
+# directory may not be the same as the repo root.
+config = AutoConfig(search_path=BASE_DIR)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config("SECRET_KEY", default="").strip()
@@ -31,17 +36,12 @@ if "runserver" in sys.argv and not DEBUG:
 
 # NOTE:
 # In production you must set a strict ALLOWED_HOSTS list.
-# During local development it's common to run `manage.py runserver` while still
-# using a production-like .env; in that case, ensure localhost works.
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in config(
-        "ALLOWED_HOSTS",
-        default="localhost,127.0.0.1",
-        cast=Csv(),
-    )
-    if host and host.strip()
-]
+# cPanel commonly uses DJANGO_ALLOWED_HOSTS; accept it as an override.
+_allowed_hosts_raw = config("DJANGO_ALLOWED_HOSTS", default="").strip()
+if not _allowed_hosts_raw:
+    _allowed_hosts_raw = config("ALLOWED_HOSTS", default="localhost,127.0.0.1").strip()
+
+ALLOWED_HOSTS = [host.strip() for host in Csv()(_allowed_hosts_raw) if host and host.strip()]
 
 _local_dev_hosts = ["localhost", "127.0.0.1", "[::1]"]
 
@@ -103,6 +103,12 @@ WSGI_APPLICATION = 'roshe_logistics.wsgi.application'
 # Prefer Postgres when configured, but fall back to SQLite at startup if Postgres
 # is unreachable/misconfigured (so the app can still boot).
 DB_ENGINE = config("DB_ENGINE", default="sqlite").strip().lower()
+
+# Accept Django ENGINE strings in DB_ENGINE (common copy/paste from hosting docs).
+if DB_ENGINE in {"django.db.backends.postgresql", "django.db.backends.postgres"}:
+    DB_ENGINE = "postgresql"
+elif DB_ENGINE == "django.db.backends.sqlite3":
+    DB_ENGINE = "sqlite"
 
 
 def _sqlite_databases():
@@ -171,9 +177,35 @@ def _should_fallback_to_sqlite() -> bool:
     return config("POSTGRES_FALLBACK_TO_SQLITE", default=False, cast=bool)
 
 
+def _management_command() -> str:
+    # Typical patterns:
+    #   python manage.py <cmd>
+    #   manage.py <cmd>
+    try:
+        return sys.argv[1].strip().lower()
+    except Exception:
+        return ""
+
+
+def _skip_db_connectivity_probe() -> bool:
+    # Some management commands do not need the database to be reachable just to
+    # start Django (and probing connectivity can break local workflows when
+    # using a production-like .env).
+    #
+    # Keep this list minimal: commands here will NOT validate Postgres
+    # connectivity at settings import time.
+    return _management_command() in {
+        "check",
+        "collectstatic",
+        "makemigrations",
+    }
+
+
 if DB_ENGINE in {"postgres", "postgresql", "psql"}:
     _pg = _postgres_databases()['default']
-    if _postgres_is_reachable(_pg):
+    if _skip_db_connectivity_probe():
+        DATABASES = {'default': _pg}
+    elif _postgres_is_reachable(_pg):
         DATABASES = {'default': _pg}
     else:
         if _should_fallback_to_sqlite():
@@ -190,13 +222,13 @@ if DB_ENGINE in {"postgres", "postgresql", "psql"}:
 else:
     DATABASES = _sqlite_databases()
 
+_csrf_raw = config("DJANGO_CSRF_TRUSTED_ORIGINS", default="").strip()
+if not _csrf_raw:
+    _csrf_raw = config("CSRF_TRUSTED_ORIGINS", default="").strip()
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
-    for origin in config(
-        "CSRF_TRUSTED_ORIGINS",
-        default="",
-        cast=Csv(),
-    )
+    for origin in Csv()(_csrf_raw)
     if origin and origin.strip()
 ]
 
@@ -227,7 +259,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Africa/Kampala'
+TIME_ZONE = config('DJANGO_TIME_ZONE', default='Africa/Kampala').strip() or 'Africa/Kampala'
 USE_I18N = True
 USE_TZ = True
 
@@ -259,21 +291,6 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_SAVE_EVERY_REQUEST = False
 
-# Email (SMTP)
-# Configure these in .env / cPanel environment variables.
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = config('EMAIL_HOST', default='').strip()
-EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-
-# cPanel typically recommends SSL on 465.
-EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
-
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER).strip() or EMAIL_HOST_USER
-SERVER_EMAIL = config('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL).strip() or DEFAULT_FROM_EMAIL
-
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -292,24 +309,22 @@ LOGGING = {
 }
 
 # Email (SMTP)
-#
-# To send invoice/receipt PDFs as attachments, configure these in your .env.
-# Example (Gmail):
-#   EMAIL_HOST=smtp.gmail.com
-#   EMAIL_PORT=587
-#   EMAIL_USE_TLS=True
-#   EMAIL_HOST_USER=you@gmail.com
-#   EMAIL_HOST_PASSWORD=your_app_password
-#   DEFAULT_FROM_EMAIL=ROSHE LOGISTICS <you@gmail.com>
-
+# Configure these in your .env / cPanel environment variables.
+# cPanel mail commonly uses SSL on port 465.
 EMAIL_HOST = config('EMAIL_HOST', default='').strip()
-EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='ROSHE LOGISTICS <no-reply@localhost>')
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 
-# If no SMTP host is configured, fall back to console backend (prints emails to terminal).
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default=(EMAIL_HOST_USER or 'ROSHE LOGISTICS <no-reply@localhost>'),
+).strip()
+SERVER_EMAIL = config('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL).strip() or DEFAULT_FROM_EMAIL
+
+# If no SMTP host is configured, fall back to console backend.
 EMAIL_BACKEND = config(
     'EMAIL_BACKEND',
     default=(
