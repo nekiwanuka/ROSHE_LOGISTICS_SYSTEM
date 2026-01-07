@@ -143,10 +143,19 @@ def _postgres_is_reachable(postgres_settings: dict) -> bool:
     if not (name and user and password and host and port):
         return False
 
+    # Support either psycopg (v3) or psycopg2.
+    psycopg_connect = None
     try:
-        import psycopg2  # provided by psycopg2-binary
+        import psycopg  # type: ignore
+
+        psycopg_connect = psycopg.connect
     except Exception:
-        return False
+        try:
+            import psycopg2  # type: ignore
+
+            psycopg_connect = psycopg2.connect
+        except Exception:
+            return False
 
     try:
         connect_timeout = int(config("DB_CONNECT_TIMEOUT", default="3"))
@@ -154,7 +163,7 @@ def _postgres_is_reachable(postgres_settings: dict) -> bool:
         connect_timeout = 3
 
     try:
-        conn = psycopg2.connect(
+        conn = psycopg_connect(
             dbname=name,
             user=user,
             password=password,
@@ -198,6 +207,7 @@ def _skip_db_connectivity_probe() -> bool:
         "check",
         "collectstatic",
         "makemigrations",
+        "migrate",
     }
 
 
@@ -216,8 +226,8 @@ if DB_ENGINE in {"postgres", "postgresql", "psql"}:
             DATABASES = _sqlite_databases()
         else:
             raise RuntimeError(
-                "Postgres is configured but unreachable. Fix DB_* settings, install psycopg2-binary, "
-                "or set POSTGRES_FALLBACK_TO_SQLITE=True to allow SQLite fallback."
+                "Postgres is configured but unreachable. Fix DB_* settings and credentials, install a Postgres driver "
+                "(psycopg[binary] or psycopg2-binary), or set POSTGRES_FALLBACK_TO_SQLITE=True to allow SQLite fallback."
             )
 else:
     DATABASES = _sqlite_databases()
