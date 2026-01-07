@@ -336,21 +336,47 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_SAVE_EVERY_REQUEST = False
 
 # Logging Configuration
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logistics.log',
+_log_path = BASE_DIR / 'logistics.log'
+_can_write_log_file = True
+try:
+    _log_path.parent.mkdir(parents=True, exist_ok=True)
+    with _log_path.open('a', encoding='utf-8'):
+        pass
+except Exception:
+    _can_write_log_file = False
+
+if _can_write_log_file:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'file': {
+                'level': 'INFO',
+                'class': 'logging.FileHandler',
+                'filename': _log_path,
+            },
         },
-    },
-    'root': {
-        'handlers': ['file'],
-        'level': 'INFO',
-    },
-}
+        'root': {
+            'handlers': ['file'],
+            'level': 'INFO',
+        },
+    }
+else:
+    # Fall back to stderr if file logging isn't possible on the host.
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    }
 
 # Email (SMTP)
 # Configure these in your .env / cPanel environment variables.
