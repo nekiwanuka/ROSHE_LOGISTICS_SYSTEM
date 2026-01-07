@@ -136,13 +136,22 @@ def _postgres_databases():
         # Common values: disable|allow|prefer|require|verify-ca|verify-full
         _options["sslmode"] = _sslmode
 
+    # cPanel/shared hosts often resolve "localhost" to IPv6 ::1 first, but
+    # Postgres may not be listening on IPv6. Prefer IPv4 unless the user
+    # explicitly provides something else.
+    _raw_host = config("DB_HOST", default="127.0.0.1")
+    _host = (_raw_host or "").strip()
+    if _host.lower() == "localhost":
+        _host = "127.0.0.1"
+
     return {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': config("DB_NAME", default="").strip(),
             'USER': config("DB_USER", default="").strip(),
             'PASSWORD': config("DB_PASSWORD", default=""),
-            'HOST': config("DB_HOST", default="localhost").strip(),
+            # Empty HOST means UNIX socket (valid on Linux).
+            'HOST': _host,
             'PORT': config("DB_PORT", default="5432").strip(),
             'OPTIONS': _options,
         }
@@ -156,7 +165,8 @@ def _postgres_is_reachable(postgres_settings: dict) -> bool:
     host = postgres_settings.get('HOST')
     port = postgres_settings.get('PORT')
 
-    if not (name and user and password and host and port):
+    # NOTE: host may legitimately be empty (UNIX socket).
+    if not (name and user and password and port):
         return False
 
     # Support either psycopg (v3) or psycopg2.
@@ -179,14 +189,18 @@ def _postgres_is_reachable(postgres_settings: dict) -> bool:
         connect_timeout = 3
 
     try:
-        conn = psycopg_connect(
-            dbname=name,
-            user=user,
-            password=password,
-            host=host,
-            port=port,
-            connect_timeout=connect_timeout,
-        )
+        kwargs = {
+            "dbname": name,
+            "user": user,
+            "password": password,
+            "port": port,
+            "connect_timeout": connect_timeout,
+        }
+        # For UNIX socket connections, omit host entirely.
+        if host:
+            kwargs["host"] = host
+
+        conn = psycopg_connect(**kwargs)
         conn.close()
         return True
     except Exception as exc:
@@ -224,6 +238,10 @@ def _skip_db_connectivity_probe() -> bool:
         "collectstatic",
         "makemigrations",
         "migrate",
+        "createsuperuser",
+        "changepassword",
+        "shell",
+        "dbshell",
     }
 
 
