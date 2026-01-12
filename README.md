@@ -45,6 +45,8 @@ In the cPanel Python App UI (or via SSH/terminal):
 
 - Install from `requirements.txt`
 
+Note: PDF branding (logo inside generated invoices/receipts/quotations) requires `svglib` (included in `requirements.txt`). If the logo is missing on PDFs but the blue square shows, it usually means the server environment didn't install `svglib` successfully.
+
 ### 5) Run migrations + create admin
 From the application root:
 
@@ -56,11 +58,16 @@ Collect static files:
 
 - `python manage.py collectstatic --noinput`
 
+Quick verification after deploy:
+- Open `https://your-domain.com/static/images/roshe_logo.svg` in a browser to confirm the logo asset is served.
+
 ## Local development
 
 - `python -m venv .venv`
 - `pip install -r requirements.txt`
-- Create a `.env` (see `.env.example`)
+- Create a `.env.local` for local settings (see `.env.example`).
+   - Use `DB_ENGINE=sqlite` locally.
+   - Keep `.env` for cPanel/production Postgres settings.
 - `python manage.py migrate`
 - `python manage.py runserver`
 - **Python 3.9+** ([Download](https://www.python.org/downloads/))

@@ -1,5 +1,6 @@
 """Views for the logistics management system."""
 import csv
+import logging
 from decimal import Decimal
 from datetime import timedelta
 from io import BytesIO
@@ -48,6 +49,9 @@ from .models import (
     Quote,
     Transit,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_PAGE_SIZE = 20
@@ -143,6 +147,40 @@ def _draw_brand_footer(canvas_obj, doc, primary, accent):
     canvas_obj.setFont('Helvetica', 8)
     canvas_obj.drawRightString(right, y0 + 7, 'www.roshegroup.com')
     canvas_obj.restoreState()
+
+
+def _draw_svg_logo_in_box(*, canvas_obj, left: float, top: float, primary, box_size: float = 44, desired_h: float = 34):
+    """Draw the Roshe SVG logo inside a colored square.
+
+    In production this requires the `svglib` dependency to be installed.
+    """
+    canvas_obj.saveState()
+    canvas_obj.setFillColor(primary)
+    canvas_obj.rect(left, top - box_size + 8, box_size, box_size, fill=1, stroke=0)
+
+    logo_path = finders.find('images/roshe_logo.svg')
+    if not logo_path:
+        logger.warning("PDF logo not found in staticfiles: images/roshe_logo.svg")
+        canvas_obj.restoreState()
+        return
+
+    try:
+        from svglib.svglib import svg2rlg
+        from reportlab.graphics import renderPDF
+
+        drawing = svg2rlg(logo_path)
+        if drawing and drawing.height:
+            scale = desired_h / float(drawing.height)
+            drawing.scale(scale, scale)
+            renderPDF.draw(drawing, canvas_obj, left + 5, top - desired_h + 10)
+    except Exception:
+        # Don't break PDF generation if branding can't be rendered.
+        logger.exception(
+            "Failed to render PDF logo from %s. Ensure `svglib` is installed on the host.",
+            logo_path,
+        )
+    finally:
+        canvas_obj.restoreState()
 
 
 # ===== AUTHENTICATION =====
@@ -714,24 +752,7 @@ def payment_invoice(request, pk):
         top = height - doc.topMargin + 95
 
         # Logo with blue background (only behind the logo)
-        logo_box = 44
-        canvas_obj.setFillColor(primary)
-        canvas_obj.rect(left, top - logo_box + 8, logo_box, logo_box, fill=1, stroke=0)
-
-        logo_path = finders.find('images/roshe_logo.svg')
-        if logo_path:
-            try:
-                from svglib.svglib import svg2rlg
-                from reportlab.graphics import renderPDF
-
-                drawing = svg2rlg(logo_path)
-                desired_h = 34
-                if drawing and drawing.height:
-                    scale = desired_h / float(drawing.height)
-                    drawing.scale(scale, scale)
-                    renderPDF.draw(drawing, canvas_obj, left + 5, top - desired_h + 10)
-            except Exception:
-                pass
+        _draw_svg_logo_in_box(canvas_obj=canvas_obj, left=left, top=top, primary=primary)
 
         # Company block
         company_x = left + 60
@@ -1036,24 +1057,7 @@ def payment_receipt(request, transaction_id):
         top = height - doc.topMargin + 95
 
         # Logo with blue background (only behind the logo)
-        logo_box = 44
-        canvas_obj.setFillColor(primary)
-        canvas_obj.rect(left, top - logo_box + 8, logo_box, logo_box, fill=1, stroke=0)
-
-        logo_path = finders.find('images/roshe_logo.svg')
-        if logo_path:
-            try:
-                from svglib.svglib import svg2rlg
-                from reportlab.graphics import renderPDF
-
-                drawing = svg2rlg(logo_path)
-                desired_h = 34
-                if drawing and drawing.height:
-                    scale = desired_h / float(drawing.height)
-                    drawing.scale(scale, scale)
-                    renderPDF.draw(drawing, canvas_obj, left + 5, top - desired_h + 10)
-            except Exception:
-                pass
+        _draw_svg_logo_in_box(canvas_obj=canvas_obj, left=left, top=top, primary=primary)
 
         # Company block
         company_x = left + 60
@@ -1795,26 +1799,9 @@ def _pdf_report_response(filename, title, headers, rows):
         left = doc_obj.leftMargin
         right = width - doc_obj.rightMargin
 
-        canvas_obj.saveState()
-        canvas_obj.setFillColor(primary)
-        canvas_obj.setFont('Helvetica-Bold', 11)
-        canvas_obj.drawString(left, height - 28, 'ROSHE LOGISTICS')
 
-        canvas_obj.setFillColor(colors.black)
-        canvas_obj.setFont('Helvetica-Bold', 13)
-        canvas_obj.drawString(left, height - 46, title)
-
-        canvas_obj.setFont('Helvetica', 9)
-        canvas_obj.setFillColor(colors.HexColor('#333333'))
-        canvas_obj.drawRightString(right, height - 28, f"Generated: {generated_at}")
-        canvas_obj.drawRightString(right, height - 46, f"Page {canvas_obj.getPageNumber()}")
-
-        canvas_obj.setStrokeColor(accent)
-        canvas_obj.setLineWidth(2)
-        canvas_obj.line(left, height - 52, right, height - 52)
-        canvas_obj.restoreState()
-
-        _draw_brand_footer(canvas_obj, doc_obj, primary=primary, accent=accent)
+        # Logo with blue background (only behind the logo)
+        _draw_svg_logo_in_box(canvas_obj=canvas_obj, left=left, top=top, primary=primary)
 
     styles = getSampleStyleSheet()
 
