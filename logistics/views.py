@@ -1264,7 +1264,7 @@ def payment_invoice(request, pk):
 
     notes = [
         Paragraph('<b>Notes / Terms</b>', heading),
-        Paragraph('1. Shipping Charges are to be paid when the container arrives at Mombasa port.', small),
+        Paragraph('1.Freight Charges are to be paid when the container arrives at Mombasa port.', small),
         Paragraph('2. A Surcharge of 5% will be charged on late payment', small),
         Paragraph('3. Partial payments are recorded; outstanding balance must be cleared before release.', small),
         Paragraph('4. Thank you for choosing ROSHE LOGISTICS.', small),
