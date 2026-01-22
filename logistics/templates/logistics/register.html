@@ -67,6 +67,80 @@
                                 <div class="mb-3">
                                     <label for="{{ form.role.id_for_label }}" class="form-label">Role</label>
                                     {{ form.role }}
+                                    <div class="form-text">Select a role to preview permissions before creating the user.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{ role_permissions|json_script:"rolePermissions" }}
+
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Role permissions preview</h6>
+                                        <div class="text-muted small">Defaults are shown below. {% if can_configure_permissions %}You can override some features by ticking/unticking them.{% else %}Only the Managing Director can change these checkboxes.{% endif %}</div>
+                                    </div>
+                                    <span class="badge bg-secondary" id="rolePermLabel">Role</span>
+                                </div>
+                                <hr class="my-3">
+
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {% if can_configure_permissions %}{{ form.perm_manage_users }}{% else %}<input class="form-check-input" type="checkbox" id="perm_manage_users" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_manage_users">Can manage users</label>
+                                            <div class="text-muted small" id="perm_manage_users_note"></div>
+                                        </div>
+
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_create_clients }}{% else %}<input class="form-check-input" type="checkbox" id="perm_create_clients" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_create_clients">Can create clients</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_create_quotations }}{% else %}<input class="form-check-input" type="checkbox" id="perm_create_quotations" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_create_quotations">Can create quotations</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_create_invoices }}{% else %}<input class="form-check-input" type="checkbox" id="perm_create_invoices" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_create_invoices">Can create invoices</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_create_receipts }}{% else %}<input class="form-check-input" type="checkbox" id="perm_create_receipts" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_create_receipts">Can record receipts</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="perm_print_statements" disabled>
+                                            <label class="form-check-label" for="perm_print_statements">Can print statements / PDFs</label>
+                                        </div>
+
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="perm_edit_delete" disabled>
+                                            <label class="form-check-label" for="perm_edit_delete">Can edit/delete documents</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_view_revenue }}{% else %}<input class="form-check-input" type="checkbox" id="perm_view_revenue" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_view_revenue">Can view revenue totals</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {% if can_configure_permissions %}{{ form.perm_approve_verify }}{% else %}<input class="form-check-input" type="checkbox" id="perm_approve_verify" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_approve_verify">Can approve/verify receipts</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_void_unvoid }}{% else %}<input class="form-check-input" type="checkbox" id="perm_void_unvoid" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_void_unvoid">Can void/unvoid receipts</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            {% if can_configure_permissions %}{{ form.perm_access_reports }}{% else %}<input class="form-check-input" type="checkbox" id="perm_access_reports" disabled>{% endif %}
+                                            <label class="form-check-label" for="perm_access_reports">Can access reports dashboard</label>
+                                        </div>
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="perm_requires_2fa" disabled>
+                                            <label class="form-check-label" for="perm_requires_2fa">Requires 2-step login (email code)</label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -106,4 +180,56 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const roleSelect = document.getElementById('id_role');
+        const dataEl = document.getElementById('rolePermissions');
+        if (!roleSelect || !dataEl) return;
+
+        let perms = {};
+        try {
+            perms = JSON.parse(dataEl.textContent || '{}');
+        } catch (e) {
+            perms = {};
+        }
+
+        const setChecked = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!value;
+        };
+
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value || '';
+        };
+
+        const setLabel = (value) => {
+            const el = document.getElementById('rolePermLabel');
+            if (el) el.textContent = value || 'Role';
+        };
+
+        const update = () => {
+            const role = roleSelect.value;
+            const p = perms[role] || {};
+            setLabel(p.label || role || 'Role');
+            setChecked('perm_manage_users', p.manage_users);
+            setText('perm_manage_users_note', p.manage_users_note);
+            setChecked('perm_create_clients', p.create_clients);
+            setChecked('perm_create_quotations', p.create_quotations);
+            setChecked('perm_create_invoices', p.create_invoices);
+            setChecked('perm_create_receipts', p.create_receipts);
+            setChecked('perm_access_reports', p.access_reports);
+            setChecked('perm_print_statements', (p.print_statements !== undefined) ? p.print_statements : p.access_reports);
+            setChecked('perm_edit_delete', p.edit_delete_documents);
+            setChecked('perm_view_revenue', p.view_revenue);
+            setChecked('perm_approve_verify', p.approve_verify_receipts);
+            setChecked('perm_void_unvoid', p.void_unvoid_receipts);
+            setChecked('perm_requires_2fa', p.requires_2fa);
+        };
+
+        roleSelect.addEventListener('change', update);
+        update();
+    })();
+</script>
 {% endblock %}

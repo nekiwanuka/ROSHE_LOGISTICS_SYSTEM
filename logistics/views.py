@@ -2,7 +2,7 @@
 import csv
 import logging
 from decimal import Decimal
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 
 from django.contrib import messages
@@ -37,6 +37,7 @@ from .forms import (
     SendDocumentEmailForm,
     TransitForm,
     UserRegistrationForm,
+    UserPermissionOverridesForm,
 )
 from .models import (
     AuditLog,
@@ -50,6 +51,8 @@ from .models import (
     Transit,
 )
 
+from .permissions import ROLE_DEFAULTS, get_app_permissions, has_app_permission
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,66 @@ AUDIT_PAGE_SIZE = 40
 FULL_ACCESS_ROLES = {'superuser', 'managing_director'}
 
 
+USER_ADMIN_ROLES = {'superuser', 'managing_director', 'manager'}
+
+
+def _can_manage_users(user) -> bool:
+    return has_app_permission(user, 'manage_users')
+
+
+def _can_view_revenue(user) -> bool:
+    return has_app_permission(user, 'view_revenue')
+
+
+def _requires_2fa(user) -> bool:
+    if not user:
+        return False
+    # Enable for every user.
+    return True
+
+
+def _generate_otp_code() -> str:
+    import secrets
+
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _send_login_otp(request, user) -> None:
+    code = _generate_otp_code()
+    request.session['pre_2fa_user_id'] = user.pk
+    request.session['pre_2fa_otp'] = code
+    request.session['pre_2fa_otp_expires_at'] = (timezone.now() + timedelta(minutes=10)).isoformat()
+    request.session['pre_2fa_otp_attempts'] = 0
+
+    to_email = (getattr(settings, 'LOGIN_OTP_EMAIL', '') or '').strip()
+    if not to_email:
+        raise ValueError('LOGIN_OTP_EMAIL is not configured.')
+
+    ip = (request.META.get('REMOTE_ADDR') or '').strip()
+    username = getattr(user, 'username', '')
+    role = getattr(user, 'role', '')
+
+    subject = 'ROSHE LOGISTICS Login Verification Code'
+    body = (
+        f"Login attempt for user: {username}\n"
+        f"Role: {role}\n"
+        f"IP: {ip}\n\n"
+        f"Verification code: {code}\n\n"
+        "This code expires in 10 minutes. If you did not attempt to sign in, please contact your administrator."
+    )
+    EmailMessage(subject=subject, body=body, to=[to_email]).send(fail_silently=False)
+
+
+def _finalize_login(request, user):
+    """Complete login and set absolute session expiry timestamp."""
+    login(request, user)
+    request.session['login_ts'] = timezone.now().timestamp()
+    try:
+        request.session.set_expiry(getattr(settings, 'SESSION_COOKIE_AGE', 60 * 60))
+    except Exception:
+        pass
+
+
 def _has_full_app_access(user) -> bool:
     """Full in-app access (System Admin + Managing Director)."""
     if not user or not getattr(user, 'is_authenticated', False):
@@ -70,9 +133,13 @@ def _has_full_app_access(user) -> bool:
     return getattr(user, 'role', None) in FULL_ACCESS_ROLES
 
 
+def _can_create_clients(user) -> bool:
+    return has_app_permission(user, 'create_clients')
+
+
 def _deny_if_data_entry_reports(request):
-    """Data entry users cannot access reports/exports."""
-    if getattr(request.user, 'role', None) == 'data_entry':
+    """Users without reports access cannot access reports/exports."""
+    if not has_app_permission(getattr(request, 'user', None), 'access_reports'):
         return HttpResponse('Permission denied', status=403)
     return None
 
@@ -193,10 +260,64 @@ def login_view(request):
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            login(request, user)
-            return redirect('dashboard')
+            try:
+                _send_login_otp(request, user)
+            except Exception as exc:
+                messages.error(request, f'Login verification could not be started: {exc}')
+                return redirect('login')
+            return redirect('two_factor_verify')
         messages.error(request, 'Invalid username or password')
     return render(request, 'logistics/login.html')
+
+
+def two_factor_verify(request):
+    """Second step (email OTP) for all users."""
+    user_id = request.session.get('pre_2fa_user_id')
+    if not user_id:
+        return redirect('login')
+
+    user = get_object_or_404(CustomUser, pk=user_id)
+    if not _requires_2fa(user):
+        _finalize_login(request, user)
+        for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
+            request.session.pop(k, None)
+        return redirect('dashboard')
+
+    expires_raw = request.session.get('pre_2fa_otp_expires_at')
+    try:
+        expires_at = timezone.make_aware(datetime.fromisoformat(expires_raw)) if expires_raw else None
+    except Exception:
+        expires_at = None
+
+    if not expires_at or timezone.now() > expires_at:
+        # Expired: force resend.
+        request.session.pop('pre_2fa_otp', None)
+        messages.error(request, 'Verification code expired. Please login again to get a new code.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        entered = (request.POST.get('code') or '').strip()
+        attempts = int(request.session.get('pre_2fa_otp_attempts') or 0)
+        attempts += 1
+        request.session['pre_2fa_otp_attempts'] = attempts
+
+        if attempts > 10:
+            for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
+                request.session.pop(k, None)
+            messages.error(request, 'Too many attempts. Please login again.')
+            return redirect('login')
+
+        if entered != request.session.get('pre_2fa_otp'):
+            messages.error(request, 'Invalid verification code.')
+            return render(request, 'logistics/two_factor_verify.html', {'email': getattr(settings, 'LOGIN_OTP_EMAIL', '')})
+
+        # Success
+        for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
+            request.session.pop(k, None)
+        _finalize_login(request, user)
+        return redirect('dashboard')
+
+    return render(request, 'logistics/two_factor_verify.html', {'email': getattr(settings, 'LOGIN_OTP_EMAIL', '')})
 
 
 def logout_view(request):
@@ -207,22 +328,120 @@ def logout_view(request):
 
 
 def register_view(request):
-    """Create new user accounts (superusers only)."""
+    """Create new user accounts based on role hierarchy."""
     if not request.user.is_authenticated:
         return redirect('login')
-    if not _has_full_app_access(request.user):
+    if not _can_manage_users(request.user):
         messages.error(request, 'Permission denied')
         return redirect('dashboard')
+
+    role_permissions = {
+        'superuser': {
+            'label': 'Superuser',
+            'manage_users': True,
+            'manage_users_note': 'Full (can create Managing Director and all roles).',
+            'create_clients': True,
+            'create_quotations': True,
+            'create_invoices': True,
+            'create_receipts': True,
+            'print_statements': True,
+            'edit_delete_documents': True,
+            'approve_verify_receipts': True,
+            'void_unvoid_receipts': True,
+            'view_revenue': True,
+            'access_reports': True,
+            'requires_2fa': True,
+        },
+        'managing_director': {
+            'label': 'Managing Director',
+            'manage_users': True,
+            'manage_users_note': 'Full (can create Manager, Accountant, Front Desk).',
+            'create_clients': True,
+            'create_quotations': True,
+            'create_invoices': True,
+            'create_receipts': True,
+            'print_statements': True,
+            'edit_delete_documents': True,
+            'approve_verify_receipts': True,
+            'void_unvoid_receipts': True,
+            'view_revenue': True,
+            'access_reports': True,
+            'requires_2fa': True,
+        },
+        'manager': {
+            'label': 'Manager',
+            'manage_users': True,
+            'manage_users_note': 'Limited (can create Accountant and Front Desk; can view only those users).',
+            'create_clients': True,
+            'create_quotations': True,
+            'create_invoices': True,
+            'create_receipts': True,
+            'print_statements': True,
+            'edit_delete_documents': False,
+            'approve_verify_receipts': False,
+            'void_unvoid_receipts': False,
+            'view_revenue': False,
+            'access_reports': True,
+            'requires_2fa': False,
+        },
+        'accountant': {
+            'label': 'Accountant',
+            'manage_users': False,
+            'manage_users_note': 'No',
+            'create_clients': False,
+            'create_quotations': True,
+            'create_invoices': True,
+            'create_receipts': True,
+            'print_statements': True,
+            'edit_delete_documents': False,
+            'approve_verify_receipts': False,
+            'void_unvoid_receipts': False,
+            'view_revenue': False,
+            'access_reports': True,
+            'requires_2fa': False,
+        },
+        'data_entry': {
+            'label': 'Front Desk Operator',
+            'manage_users': False,
+            'manage_users_note': 'No',
+            'create_clients': True,
+            'create_quotations': True,
+            'create_invoices': True,
+            'create_receipts': True,
+            'print_statements': True,
+            'edit_delete_documents': False,
+            'approve_verify_receipts': False,
+            'void_unvoid_receipts': False,
+            'view_revenue': False,
+            'access_reports': False,
+            'requires_2fa': False,
+        },
+    }
     if request.method == 'POST':
-        form = UserRegistrationForm(request.POST, request_user=request.user)
+        form = UserRegistrationForm(
+            request.POST,
+            request_user=request.user,
+            can_configure_permissions=_has_full_app_access(request.user),
+        )
         if form.is_valid():
             user = form.save()
             messages.success(request, f'User {user.username} created successfully')
             log_audit('user', 'create', user.id, str(user), request.user)
             return redirect('user_list')
     else:
-        form = UserRegistrationForm(request_user=request.user)
-    return render(request, 'logistics/register.html', {'form': form})
+        form = UserRegistrationForm(
+            request_user=request.user,
+            can_configure_permissions=_has_full_app_access(request.user),
+        )
+    return render(
+        request,
+        'logistics/register.html',
+        {
+            'form': form,
+            'role_permissions': role_permissions,
+            'can_configure_permissions': _has_full_app_access(request.user),
+        },
+    )
 
 
 # ===== DASHBOARD & USERS =====
@@ -283,10 +502,12 @@ def dashboard_reset_keep_users_and_seed(request):
 @login_required
 def user_list(request):
     """List all users (superusers only)."""
-    if not _has_full_app_access(request.user):
+    if not _can_manage_users(request.user):
         messages.error(request, 'Permission denied')
         return redirect('dashboard')
     users = CustomUser.objects.all()
+    if getattr(request.user, 'role', None) == 'manager' and not getattr(request.user, 'is_superuser', False):
+        users = users.filter(role__in={'accountant', 'data_entry'})
     page_obj, query_string, page_range = paginate_queryset(request, users)
     return render(
         request,
@@ -296,6 +517,90 @@ def user_list(request):
             'page_obj': page_obj,
             'query_string': query_string,
             'page_range': page_range,
+        },
+    )
+
+
+@login_required
+def user_permissions_update(request, pk):
+    """MD/superuser can grant/revoke per-user feature permissions."""
+    if not _can_manage_users(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('dashboard')
+
+    # Only MD/superuser should be able to change feature checkboxes.
+    is_privileged_editor = bool(getattr(request.user, 'is_superuser', False)) or getattr(
+        request.user, 'role', None
+    ) in {'superuser', 'managing_director'}
+    if not is_privileged_editor:
+        messages.error(request, 'Only the Managing Director can edit user permissions.')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    # Managers can only see a subset in user_list already, but enforce again.
+    if getattr(request.user, 'role', None) == 'manager' and not getattr(request.user, 'is_superuser', False):
+        if getattr(target_user, 'role', None) not in {'accountant', 'data_entry'}:
+            messages.error(request, 'Permission denied')
+            return redirect('user_list')
+
+    if bool(getattr(target_user, 'is_superuser', False)) and not bool(getattr(request.user, 'is_superuser', False)):
+        messages.error(request, 'Only a Django superuser can modify a superuser account.')
+        return redirect('user_list')
+
+    if getattr(target_user, 'role', None) in {'superuser', 'managing_director'}:
+        messages.error(request, 'Permissions for this account type are managed automatically.')
+        return redirect('user_list')
+
+    if request.method == 'POST':
+        form = UserPermissionOverridesForm(request.POST, user=target_user)
+        if form.is_valid():
+            role = getattr(target_user, 'role', None) or 'data_entry'
+            defaults = ROLE_DEFAULTS.get(role, ROLE_DEFAULTS['data_entry'])
+
+            desired = {
+                key: bool(form.cleaned_data.get(key, False))
+                for key in (
+                    'manage_users',
+                    'create_clients',
+                    'create_quotations',
+                    'create_invoices',
+                    'create_receipts',
+                    'access_reports',
+                    'view_revenue',
+                    'approve_verify_receipts',
+                    'void_unvoid_receipts',
+                )
+            }
+
+            # Store only the differences from role defaults.
+            overrides = {
+                key: value
+                for key, value in desired.items()
+                if key in defaults and bool(defaults.get(key, False)) != bool(value)
+            }
+
+            target_user.permission_overrides = overrides
+            target_user.save(update_fields=['permission_overrides'])
+            messages.success(request, f'Permissions updated for {target_user.username}.')
+            log_audit('user', 'permissions_update', target_user.id, target_user.username, request.user)
+            return redirect('user_list')
+    else:
+        form = UserPermissionOverridesForm(user=target_user)
+
+    role = getattr(target_user, 'role', None) or 'data_entry'
+    role_defaults = ROLE_DEFAULTS.get(role, ROLE_DEFAULTS['data_entry'])
+    effective = get_app_permissions(target_user)
+
+    return render(
+        request,
+        'logistics/users/permissions.html',
+        {
+            'target_user': target_user,
+            'form': form,
+            'role_defaults': role_defaults,
+            'effective_permissions': effective,
+            'current_overrides': target_user.permission_overrides or {},
         },
     )
 
@@ -329,6 +634,9 @@ def client_list(request):
 
 @login_required
 def client_create(request):
+    if not has_app_permission(request.user, 'create_clients'):
+        messages.error(request, 'Permission denied')
+        return redirect('client_list')
     if request.method == 'POST':
         form = ClientForm(request.POST)
         if form.is_valid():
@@ -359,6 +667,9 @@ def client_detail(request, pk):
 
 @login_required
 def client_update(request, pk):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('client_list')
     client = get_object_or_404(Client, pk=pk)
     if request.method == 'POST':
         form = ClientForm(request.POST, instance=client)
@@ -463,6 +774,9 @@ def loading_detail(request, pk):
 
 @login_required
 def loading_update(request, pk):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('loading_list')
     loading = get_object_or_404(Loading, pk=pk)
     if request.method == 'POST':
         form = LoadingForm(request.POST, instance=loading)
@@ -543,6 +857,9 @@ def transit_create(request):
 
 @login_required
 def transit_update(request, pk):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('transit_list')
     transit = get_object_or_404(Transit, pk=pk)
     if request.method == 'POST':
         form = TransitForm(request.POST, instance=transit)
@@ -578,7 +895,7 @@ def payment_list(request):
         'total_outstanding': Payment.objects.filter(balance__gt=0).aggregate(Sum('balance'))['balance__sum']
         or 0,
     }
-    can_view_financial_totals = request.user.role != 'data_entry'
+    can_view_financial_totals = _can_view_revenue(request.user)
     if not can_view_financial_totals:
         totals = {key: None for key in totals}
     context = {
@@ -595,7 +912,7 @@ def payment_list(request):
 
 @login_required
 def payment_create(request, loading_id=None):
-    if request.user.role == 'data_entry':
+    if not has_app_permission(request.user, 'create_invoices'):
         messages.error(request, 'Permission denied')
         return redirect('payment_list')
     if request.method == 'POST':
@@ -620,8 +937,8 @@ def payment_create(request, loading_id=None):
 
 @login_required
 def payment_update(request, pk):
-    if request.user.role == 'data_entry':
-        messages.error(request, 'You cannot edit payments')
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
         return redirect('payment_list')
     payment = get_object_or_404(Payment.objects.select_related('loading__client'), pk=pk)
     if request.method == 'POST':
@@ -644,16 +961,27 @@ def payment_update(request, pk):
 def payment_detail(request, pk):
     payment = get_object_or_404(Payment.objects.select_related('loading__client'), pk=pk)
     transactions = payment.transactions.select_related('created_by', 'verified_by').all()
+    transactions_active = transactions.filter(is_voided=False)
+    transactions_voided = transactions.filter(is_voided=True)
+    pending_totals = payment.transactions.filter(verification_status='pending', is_voided=False).aggregate(total=Sum('amount'))
+    pending_amount = pending_totals['total'] or 0
+    pending_count = payment.transactions.filter(verification_status='pending', is_voided=False).count()
+    rejected_totals = payment.transactions.filter(verification_status='rejected', is_voided=False).aggregate(total=Sum('amount'))
+    rejected_amount = rejected_totals['total'] or 0
+    rejected_count = payment.transactions.filter(verification_status='rejected', is_voided=False).count()
     if request.method == 'POST':
         action = request.POST.get('action', 'create_transaction')
         if action == 'verify_transaction':
-            if not _has_full_app_access(request.user):
+            if not has_app_permission(request.user, 'approve_verify_receipts'):
                 messages.error(request, 'Permission denied')
                 return redirect('payment_detail', pk=pk)
             transaction = get_object_or_404(
                 payment.transactions.select_related('payment'),
                 pk=request.POST.get('transaction_id'),
             )
+            if getattr(transaction, 'is_voided', False):
+                messages.error(request, 'This receipt has been voided and cannot be verified.')
+                return redirect('payment_detail', pk=pk)
             new_status = request.POST.get('verification_status', 'pending')
             valid_statuses = {choice for choice, _ in PaymentTransaction.VERIFICATION_CHOICES}
             if new_status not in valid_statuses:
@@ -675,7 +1003,7 @@ def payment_detail(request, pk):
             )
             return redirect('payment_detail', pk=pk)
         else:
-            if request.user.role == 'data_entry':
+            if not has_app_permission(request.user, 'create_receipts'):
                 messages.error(request, 'Permission denied')
                 return redirect('payment_detail', pk=pk)
             form = PaymentTransactionForm(request.POST)
@@ -691,7 +1019,15 @@ def payment_detail(request, pk):
                     f'Payment transaction {transaction.receipt_number}',
                     request.user,
                 )
-                messages.success(request, f'Recorded payment of ${transaction.amount:,.2f}')
+                if transaction.verification_status == 'approved':
+                    messages.success(request, f"Recorded approved payment of ${transaction.amount:,.2f}.")
+                elif transaction.verification_status == 'rejected':
+                    messages.warning(request, f"Recorded rejected receipt of ${transaction.amount:,.2f}.")
+                else:
+                    messages.success(
+                        request,
+                        f"Recorded receipt of ${transaction.amount:,.2f} (pending review). Invoice balance will update after approval.",
+                    )
                 return redirect('payment_detail', pk=pk)
     else:
         form = PaymentTransactionForm(
@@ -703,10 +1039,17 @@ def payment_detail(request, pk):
     context = {
         'payment': payment,
         'transactions': transactions,
+        'transactions_active': transactions_active,
+        'transactions_voided': transactions_voided,
         'transaction_form': form,
         'verification_choices': PaymentTransaction.VERIFICATION_CHOICES,
-        'can_verify': _has_full_app_access(request.user),
-        'can_record_payment': request.user.role != 'data_entry',
+        'can_verify': has_app_permission(request.user, 'approve_verify_receipts'),
+        'can_void': has_app_permission(request.user, 'void_unvoid_receipts'),
+        'can_record_payment': has_app_permission(request.user, 'create_receipts'),
+        'pending_amount': pending_amount,
+        'pending_count': pending_count,
+        'rejected_amount': rejected_amount,
+        'rejected_count': rejected_count,
     }
     return render(request, 'logistics/payments/detail.html', context)
 
@@ -921,9 +1264,10 @@ def payment_invoice(request, pk):
 
     notes = [
         Paragraph('<b>Notes / Terms</b>', heading),
-        Paragraph('1. Invoice valid for 7 days from date of issue.', small),
-        Paragraph('2. Partial payments are recorded; outstanding balance must be cleared before release.', small),
-        Paragraph('3. Thank you for choosing ROSHE LOGISTICS.', small),
+        Paragraph('1. Freight Charges are to be paid when the container arrives at Mombasa port.', small),
+        Paragraph('2. A Surcharge of 5% will be charged on late payment', small),
+        Paragraph('3. Partial payments are recorded; outstanding balance must be cleared before release.', small),
+        Paragraph('4. Thank you for choosing ROSHE LOGISTICS.', small),
         Spacer(1, 6),
         Paragraph('<b>Bank Details</b>', heading),
         Paragraph('Bank details are available on request. Please contact ROSHE LOGISTICS.', small),
@@ -1017,11 +1361,16 @@ def payment_receipt(request, transaction_id):
     preview_param = (request.GET.get('preview') or '').strip().lower()
     preview = preview_param in {'1', 'true', 'yes', 'y'}
     payment = transaction.payment
+    if getattr(transaction, 'is_voided', False):
+        messages.error(request, 'This receipt has been voided.')
+        return redirect('payment_detail', pk=payment.pk)
     if transaction.verification_status != 'approved':
         messages.error(request, 'This payment has not been verified yet.')
         return redirect('payment_detail', pk=payment.pk)
     paid_up_to = (
-        payment.transactions.filter(pk__lte=transaction.pk).aggregate(total=Sum('amount'))['total']
+        payment.transactions.filter(pk__lte=transaction.pk, verification_status='approved', is_voided=False).aggregate(
+            total=Sum('amount')
+        )['total']
         or transaction.amount
     )
     balance_after = payment.amount_charged - paid_up_to
@@ -1229,6 +1578,9 @@ def payment_receipt_email(request, transaction_id):
     loading = payment.loading
     client = loading.client
 
+    if getattr(transaction, 'is_voided', False):
+        messages.error(request, 'This receipt has been voided.')
+        return redirect('payment_detail', pk=payment.pk)
     if transaction.verification_status != 'approved':
         messages.error(request, 'This payment has not been verified yet.')
         return redirect('payment_detail', pk=payment.pk)
@@ -1303,6 +1655,9 @@ def quote_list(request):
 
 @login_required
 def quote_create(request):
+    if not has_app_permission(request.user, 'create_quotations'):
+        messages.error(request, 'Permission denied')
+        return redirect('quote_list')
     if request.method == 'POST':
         form = QuoteForm(request.POST)
         if form.is_valid():
@@ -1591,6 +1946,9 @@ def quote_pdf(request, quote_id):
 
 @login_required
 def quote_update(request, quote_id):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('quote_list')
     quote = get_object_or_404(Quote.objects.select_related('client', 'loading'), pk=quote_id)
     if request.method == 'POST':
         form = QuoteForm(request.POST, instance=quote)
@@ -1625,9 +1983,6 @@ def quote_delete(request, quote_id):
 @login_required
 def quote_convert_to_invoice(request, quote_id):
     if request.method != 'POST':
-        return redirect('quote_detail', quote_id=quote_id)
-    if request.user.role == 'data_entry':
-        messages.error(request, 'You cannot convert quotations to invoices')
         return redirect('quote_detail', quote_id=quote_id)
 
     quote = get_object_or_404(Quote.objects.select_related('client', 'loading'), pk=quote_id)
@@ -1685,6 +2040,12 @@ def quote_convert_to_invoice(request, quote_id):
 def receipt_list(request):
     receipts = PaymentTransaction.objects.select_related('payment__loading__client', 'created_by', 'verified_by')
     search = (request.GET.get('search') or '').strip()
+    show_voided_param = (request.GET.get('show_voided') or '').strip().lower()
+    show_voided = show_voided_param in {'1', 'true', 'yes', 'y', 'on'}
+
+    if not show_voided:
+        receipts = receipts.filter(is_voided=False)
+
     if search:
         receipts = receipts.filter(
             Q(receipt_number__icontains=search)
@@ -1692,6 +2053,8 @@ def receipt_list(request):
             | Q(payment__loading__client__name__icontains=search)
             | Q(payment__loading__client__client_id__icontains=search)
         )
+
+    receipts = receipts.order_by('-created_at', '-pk')
     page_obj, query_string, page_range = paginate_queryset(request, receipts)
     return render(
         request,
@@ -1699,11 +2062,91 @@ def receipt_list(request):
         {
             'receipts': page_obj,
             'search': search,
+            'show_voided': show_voided,
+            'can_void': has_app_permission(request.user, 'void_unvoid_receipts'),
             'page_obj': page_obj,
             'query_string': query_string,
             'page_range': page_range,
         },
     )
+
+
+@login_required
+def receipt_void(request, transaction_id):
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('receipt_list')
+
+    if not has_app_permission(request.user, 'void_unvoid_receipts'):
+        messages.error(request, 'Permission denied')
+        return redirect('receipt_list')
+
+    transaction = get_object_or_404(
+        PaymentTransaction.objects.select_related('payment'),
+        pk=transaction_id,
+    )
+
+    if transaction.is_voided:
+        messages.info(request, 'This receipt is already voided.')
+        return redirect('payment_detail', pk=transaction.payment_id)
+
+    reason = (request.POST.get('void_reason') or '').strip()
+    if not reason:
+        messages.error(request, 'Please provide a reason for voiding this receipt.')
+        return redirect('payment_detail', pk=transaction.payment_id)
+
+    transaction.is_voided = True
+    transaction.void_reason = reason
+    transaction.voided_by = request.user
+    transaction.voided_at = timezone.now()
+    transaction.save(update_fields=['is_voided', 'void_reason', 'voided_by', 'voided_at', 'updated_at'])
+
+    log_audit(
+        'receipt',
+        'void',
+        transaction.id,
+        f'Receipt {transaction.receipt_number or transaction.id} voided: {reason}',
+        request.user,
+    )
+    messages.success(request, 'Receipt voided successfully.')
+    return redirect('payment_detail', pk=transaction.payment_id)
+
+
+@login_required
+def receipt_unvoid(request, transaction_id):
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('receipt_list')
+
+    if not has_app_permission(request.user, 'void_unvoid_receipts'):
+        messages.error(request, 'Permission denied')
+        return redirect('receipt_list')
+
+    transaction = get_object_or_404(
+        PaymentTransaction.objects.select_related('payment'),
+        pk=transaction_id,
+    )
+
+    if not transaction.is_voided:
+        messages.info(request, 'This receipt is not voided.')
+        return redirect('payment_detail', pk=transaction.payment_id)
+
+    previous_reason = transaction.void_reason
+    transaction.is_voided = False
+    transaction.void_reason = ''
+    transaction.voided_by = None
+    transaction.voided_at = None
+    transaction.save(update_fields=['is_voided', 'void_reason', 'voided_by', 'voided_at', 'updated_at'])
+
+    log_audit(
+        'receipt',
+        'unvoid',
+        transaction.id,
+        f'Receipt {transaction.receipt_number or transaction.id} unvoided (previous reason: {previous_reason or "-"}).',
+        request.user,
+    )
+    messages.success(request, 'Receipt unvoided successfully.')
+    return redirect('payment_detail', pk=transaction.payment_id)
 
 
 # ===== CONTAINER RETURNS =====
@@ -1752,6 +2195,9 @@ def container_return_create(request):
 
 @login_required
 def container_return_update(request, pk):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('container_return_list')
     container = get_object_or_404(ContainerReturn, pk=pk)
     if request.method == 'POST':
         form = ContainerReturnForm(request.POST, instance=container)
@@ -1799,9 +2245,26 @@ def _pdf_report_response(filename, title, headers, rows):
         left = doc_obj.leftMargin
         right = width - doc_obj.rightMargin
 
+        # Header baseline (keep consistent across pages)
+        top = height - doc_obj.topMargin + 42
 
-        # Logo with blue background (only behind the logo)
         _draw_svg_logo_in_box(canvas_obj=canvas_obj, left=left, top=top, primary=primary)
+
+        company_x = left + 60
+        canvas_obj.setFillColor(colors.black)
+        canvas_obj.setFont('Helvetica-Bold', 11)
+        canvas_obj.drawString(company_x, top, 'ROSHE LOGISTICS')
+        canvas_obj.setFont('Helvetica', 8.5)
+        canvas_obj.drawString(company_x, top - 12, title)
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.setFillColor(colors.grey)
+        canvas_obj.drawRightString(right, top - 12, f"Generated: {generated_at}")
+
+        canvas_obj.setStrokeColor(accent)
+        canvas_obj.setLineWidth(1.5)
+        canvas_obj.line(left, top - 22, right, top - 22)
+
+        _draw_brand_footer(canvas_obj, doc_obj, primary=primary, accent=accent)
 
     styles = getSampleStyleSheet()
 
@@ -1911,7 +2374,7 @@ def reports_dashboard(request):
         'outstanding_balance': Payment.objects.filter(balance__gt=0).aggregate(Sum('balance'))['balance__sum']
         or 0,
     }
-    can_view_financial_totals = request.user.role != 'data_entry'
+    can_view_financial_totals = _can_view_revenue(request.user)
     if not can_view_financial_totals:
         totals = {key: None for key in totals}
     context = {
@@ -1929,8 +2392,9 @@ def export_clients_csv(request):
     denied = _deny_if_data_entry_reports(request)
     if denied:
         return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="clients_report.csv"'
+    response['Content-Disposition'] = f'attachment; filename="clients_report_{report_date}.csv"'
     # Excel-friendly UTF-8 BOM
     response.write('\ufeff')
     writer = csv.writer(response)
@@ -1977,7 +2441,8 @@ def export_clients_pdf(request):
         ]
         for client in Client.objects.all().order_by('client_id')
     ]
-    response = _pdf_report_response('clients_report.pdf', 'Clients Report', headers, rows)
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(f'clients_report_{report_date}.pdf', 'Clients Report', headers, rows)
     log_audit('client', 'export', 0, 'PDF Export', request.user)
     return response
 
@@ -1987,8 +2452,9 @@ def export_shipments_csv(request):
     denied = _deny_if_data_entry_reports(request)
     if denied:
         return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="shipments_report.csv"'
+    response['Content-Disposition'] = f'attachment; filename="shipments_report_{report_date}.csv"'
     response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(
@@ -2052,7 +2518,8 @@ def export_shipments_pdf(request):
         ]
         for loading in Loading.objects.select_related('client').order_by('-loading_date', '-id')
     ]
-    response = _pdf_report_response('shipments_report.pdf', 'Shipments Report', headers, rows)
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(f'shipments_report_{report_date}.pdf', 'Shipments Report', headers, rows)
     log_audit('loading', 'export', 0, 'PDF Export', request.user)
     return response
 
@@ -2062,8 +2529,9 @@ def export_payments_csv(request):
     denied = _deny_if_data_entry_reports(request)
     if denied:
         return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="payments_report.csv"'
+    response['Content-Disposition'] = f'attachment; filename="payments_report_{report_date}.csv"'
     response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(
@@ -2135,7 +2603,8 @@ def export_payments_pdf(request):
         ]
         for payment in Payment.objects.select_related('loading__client')
     ]
-    response = _pdf_report_response('payments_report.pdf', 'Payments Report', headers, rows)
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(f'payments_report_{report_date}.pdf', 'Payments Report', headers, rows)
     log_audit('payment', 'export', 0, 'PDF Export', request.user)
     return response
 
@@ -2145,8 +2614,9 @@ def export_containers_csv(request):
     denied = _deny_if_data_entry_reports(request)
     if denied:
         return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="container_returns_report.csv"'
+    response['Content-Disposition'] = f'attachment; filename="container_returns_report_{report_date}.csv"'
     response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(
@@ -2217,7 +2687,13 @@ def export_containers_pdf(request):
                 container.remarks or '',
             ]
         )
-    response = _pdf_report_response('container_returns_report.pdf', 'Container Returns Report', headers, rows)
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(
+        f'container_returns_report_{report_date}.pdf',
+        'Container Returns Report',
+        headers,
+        rows,
+    )
     log_audit('container_return', 'export', 0, 'PDF Export', request.user)
     return response
 
@@ -2227,8 +2703,9 @@ def export_quotes_csv(request):
     denied = _deny_if_data_entry_reports(request)
     if denied:
         return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="quotations_report.csv"'
+    response['Content-Disposition'] = f'attachment; filename="quotations_report_{report_date}.csv"'
     response.write('\ufeff')
 
     writer = csv.writer(response)
@@ -2319,7 +2796,8 @@ def export_quotes_pdf(request):
         ]
         for quote in Quote.objects.select_related('client').order_by('-created_at', '-id')
     ]
-    response = _pdf_report_response('quotations_report.pdf', 'Quotations Report', headers, rows)
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(f'quotations_report_{report_date}.pdf', 'Quotations Report', headers, rows)
     log_audit('quote', 'export', 0, 'PDF Export', request.user)
     return response
 

@@ -60,9 +60,11 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if user.role == 'superuser' or user.role == 'managing_director' %}
                             <a href="{% url 'transit_update' transit.id %}" class="btn btn-sm btn-warning">
                                 <i class="bi bi-pencil"></i> Edit
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}

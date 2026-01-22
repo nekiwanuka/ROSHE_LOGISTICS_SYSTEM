@@ -21,8 +21,14 @@
                     >
                 </div>
                 <div class="col-12 col-md-auto">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showVoided" name="show_voided" value="1" {% if show_voided %}checked{% endif %}>
+                        <label class="form-check-label" for="showVoided">Show voided</label>
+                    </div>
+                </div>
+                <div class="col-12 col-md-auto">
                     <button type="submit" class="btn btn-primary">Search</button>
-                    {% if search %}
+                    {% if search or show_voided %}
                     <a href="{% url 'receipt_list' %}" class="btn btn-outline-secondary">Clear</a>
                     {% endif %}
                 </div>
@@ -42,6 +48,10 @@
                         <th>Date</th>
                         <th>Method</th>
                         <th>Status</th>
+                        {% if show_voided %}
+                        <th>Voided By</th>
+                        <th>Voided At</th>
+                        {% endif %}
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -55,7 +65,9 @@
                         <td>{{ receipt.payment_date|date:"Y-m-d H:i" }}</td>
                         <td>{{ receipt.get_payment_method_display }}</td>
                         <td>
-                            {% if receipt.verification_status == 'approved' %}
+                            {% if receipt.is_voided %}
+                            <span class="badge bg-secondary">Voided</span>
+                            {% elif receipt.verification_status == 'approved' %}
                             <span class="badge bg-success">Approved</span>
                             {% elif receipt.verification_status == 'rejected' %}
                             <span class="badge bg-danger">Rejected</span>
@@ -63,8 +75,24 @@
                             <span class="badge bg-warning text-dark">Pending</span>
                             {% endif %}
                         </td>
+                        {% if show_voided %}
                         <td>
-                            {% if receipt.verification_status == 'approved' %}
+                            {% if receipt.is_voided and receipt.voided_by %}
+                                {{ receipt.voided_by.username }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if receipt.is_voided and receipt.voided_at %}
+                                {{ receipt.voided_at|date:"Y-m-d H:i" }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td>
+                            {% if receipt.verification_status == 'approved' and not receipt.is_voided %}
                             {% url 'payment_receipt' receipt.id as receipt_path %}
                             {% with receipt_preview_path=receipt_path|add:'?preview=1' %}
                             {% with receipt_full_url=request.scheme|add:'://'|add:request.get_host|add:receipt_preview_path %}
@@ -84,7 +112,7 @@
                                 </a>
                                 {% with wa_text='ROSHE LOGISTICS - Receipt '|add:receipt.receipt_number|add:' - '|add:receipt_full_url %}
                                 <a
-                                    href="https://wa.me/?text={{ wa_text|urlencode }}"
+                                    href="https://wa.me/256773183916?text={{ wa_text|urlencode }}"
                                     class="btn btn-sm btn-outline-secondary"
                                     target="_blank"
                                     rel="noopener"
@@ -93,17 +121,22 @@
                                     <i class="bi bi-whatsapp"></i> WhatsApp
                                 </a>
                                 {% endwith %}
+                                <a href="{% url 'payment_detail' receipt.payment.id %}" class="btn btn-sm btn-outline-secondary" title="Open invoice">
+                                    <i class="bi bi-receipt-cutoff"></i> Invoice
+                                </a>
                             </div>
                             {% endwith %}
                             {% endwith %}
                             {% else %}
-                            <span class="text-muted">—</span>
+                            <a href="{% url 'payment_detail' receipt.payment.id %}" class="btn btn-sm btn-outline-secondary" title="Open invoice">
+                                <i class="bi bi-receipt-cutoff"></i> Invoice
+                            </a>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">No receipts found</td>
+                        <td colspan="{% if show_voided %}10{% else %}8{% endif %}" class="text-center text-muted py-4">No receipts found</td>
                     </tr>
                     {% endfor %}
                 </tbody>

@@ -1,0 +1,113 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}Edit Permissions - ROSHE LOGISTICS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-0"><i class="bi bi-sliders"></i> Edit Permissions</h1>
+            <div class="text-muted">User: <strong>{{ target_user.username }}</strong> · Role: {{ target_user.get_role_display }}</div>
+        </div>
+        <a href="{% url 'user_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Users
+        </a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Feature Permissions</h5>
+                    <span class="badge bg-info">Overrides saved per user</span>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    {{ form.manage_users }}
+                                    <label class="form-check-label" for="perm_manage_users">Can manage users</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.create_clients }}
+                                    <label class="form-check-label" for="perm_create_clients">Can create clients</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.create_quotations }}
+                                    <label class="form-check-label" for="perm_create_quotations">Can create quotations</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.create_invoices }}
+                                    <label class="form-check-label" for="perm_create_invoices">Can create invoices</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.create_receipts }}
+                                    <label class="form-check-label" for="perm_create_receipts">Can record receipts</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    {{ form.access_reports }}
+                                    <label class="form-check-label" for="perm_access_reports">Can access reports dashboard</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.view_revenue }}
+                                    <label class="form-check-label" for="perm_view_revenue">Can view revenue totals</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.approve_verify_receipts }}
+                                    <label class="form-check-label" for="perm_approve_verify">Can approve/verify receipts</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    {{ form.void_unvoid_receipts }}
+                                    <label class="form-check-label" for="perm_void_unvoid">Can void/unvoid receipts</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a class="btn btn-secondary" href="{% url 'user_list' %}">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Save Permissions
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card border-0 bg-light">
+                <div class="card-body">
+                    <h6 class="mb-2">Notes</h6>
+                    <ul class="mb-0">
+                        <li>Edits/deletes are still restricted by role (MD-only), regardless of these feature flags.</li>
+                        <li>Only approved receipts reduce invoice balances (accounting rule unchanged).</li>
+                        <li>Changing a role later changes defaults; overrides stay in place.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Current Overrides</h6>
+                </div>
+                <div class="card-body">
+                    {% if current_overrides %}
+                        <pre class="mb-0"><code>{{ current_overrides|pprint }}</code></pre>
+                    {% else %}
+                        <div class="text-muted">No overrides saved (role defaults only).</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -16,11 +16,17 @@ class CustomUser(AbstractUser):
     ROLE_CHOICES = (
         ('superuser', 'Superuser (Admin)'),
         ('managing_director', 'Managing Director'),
-        ('data_entry', 'Data Entry User'),
+        ('manager', 'Manager'),
+        ('accountant', 'Accountant'),
+        # Backward-compatible internal value; displayed as Front Desk.
+        ('data_entry', 'Front Desk Operator'),
     )
     
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='data_entry')
     phone = models.CharField(max_length=20, blank=True)
+    # Optional per-user overrides set by privileged admins.
+    # Keys are defined in logistics.permissions.PERM_KEYS.
+    permission_overrides = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -293,8 +299,16 @@ class Payment(models.Model):
         return f"{yy}{mm}{monthly_sequence:03d}"
     
     def refresh_totals(self):
-        """Recalculate amount paid/balance from related transactions."""
-        total_paid = self.transactions.aggregate(total=Sum('amount'))['total'] or 0
+        """Recalculate amount paid/balance from related transactions.
+
+        Only approved transactions affect the invoice balance.
+        """
+        total_paid = (
+            self.transactions.filter(verification_status='approved', is_voided=False).aggregate(total=Sum('amount'))[
+                'total'
+            ]
+            or 0
+        )
         balance = self.amount_charged - total_paid
         Payment.objects.filter(pk=self.pk).update(
             amount_paid=total_paid,
@@ -414,6 +428,19 @@ class PaymentTransaction(models.Model):
     notes = models.TextField(blank=True)
     verification_status = models.CharField(max_length=20, choices=VERIFICATION_CHOICES, default='pending')
     verification_notes = models.TextField(blank=True)
+
+    # Soft-voiding receipts (never hard-delete financial records).
+    is_voided = models.BooleanField(default=False)
+    void_reason = models.TextField(blank=True)
+    voided_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='voided_transactions',
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+
     verified_by = models.ForeignKey(
         CustomUser,
         null=True,

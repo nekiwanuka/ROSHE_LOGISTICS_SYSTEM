@@ -7,6 +7,7 @@ from . import views
 urlpatterns = [
     # Authentication
     path('login/', views.login_view, name='login'),
+    path('two-factor/', views.two_factor_verify, name='two_factor_verify'),
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register_view, name='register'),
     
@@ -16,6 +17,7 @@ urlpatterns = [
     
     # Users
     path('users/', views.user_list, name='user_list'),
+    path('users/<int:pk>/permissions/', views.user_permissions_update, name='user_permissions_update'),
     
     # Clients
     path('clients/', views.client_list, name='client_list'),
@@ -66,6 +68,8 @@ urlpatterns = [
 
         # Receipts
         path('receipts/', views.receipt_list, name='receipt_list'),
+        path('receipts/<int:transaction_id>/void/', views.receipt_void, name='receipt_void'),
+        path('receipts/<int:transaction_id>/unvoid/', views.receipt_unvoid, name='receipt_unvoid'),
     
     # Container Returns
     path('containers/', views.container_return_list, name='container_return_list'),

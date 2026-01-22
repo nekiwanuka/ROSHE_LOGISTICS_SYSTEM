@@ -23,6 +23,7 @@
                         <th>Phone</th>
                         <th>Status</th>
                         <th>Joined</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -43,10 +44,23 @@
                             {% endif %}
                         </td>
                         <td>{{ user.created_at|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if request.user.is_superuser or request.user.role == 'managing_director' %}
+                                {% if user.role != 'superuser' and user.role != 'managing_director' and not user.is_superuser %}
+                                <a href="{% url 'user_permissions_update' user.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-sliders"></i> Permissions
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No users found</td>
+                        <td colspan="8" class="text-center text-muted py-4">No users found</td>
                     </tr>
                     {% endfor %}
                 </tbody>

@@ -6,9 +6,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-people"></i> Clients</h1>
+        {% if app_perms.create_clients %}
         <a href="{% url 'client_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add Client
         </a>
+        {% endif %}
     </div>
 
     <!-- Search Bar -->
@@ -64,10 +66,10 @@
                                 <a href="{% url 'client_detail' client.id %}" class="btn btn-sm btn-info" title="View details">
                                     <i class="bi bi-eye"></i>
                                 </a>
+                                {% if user.role == 'superuser' or user.role == 'managing_director' %}
                                 <a href="{% url 'client_update' client.id %}" class="btn btn-sm btn-warning" title="Edit client">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                {% if user.role == 'superuser' or user.role == 'managing_director' %}
                                 <a href="{% url 'client_delete' client.id %}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this client?')" title="Delete client">
                                     <i class="bi bi-trash"></i>
                                 </a>

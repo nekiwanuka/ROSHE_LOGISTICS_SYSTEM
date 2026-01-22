@@ -4,15 +4,29 @@ Roshe Logistics Management System (Web)
 """
 import sys
 from pathlib import Path
-from decouple import AutoConfig, Csv
+from decouple import AutoConfig, Config, Csv, RepositoryEnv
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Always load configuration from a .env located in the project root (BASE_DIR).
+# Load configuration from the project root (BASE_DIR).
+#
+# Priority order:
+#   1) .env.local (developer machine overrides)
+#   2) .env (production/cPanel)
+#   3) environment variables only (if neither file exists)
+#
 # This avoids surprises under Passenger/cPanel where the process working
 # directory may not be the same as the repo root.
-config = AutoConfig(search_path=BASE_DIR)
+_env_local_path = BASE_DIR / ".env.local"
+_env_path = BASE_DIR / ".env"
+
+if _env_local_path.exists():
+    config = Config(RepositoryEnv(str(_env_local_path)))
+elif _env_path.exists():
+    config = Config(RepositoryEnv(str(_env_path)))
+else:
+    config = AutoConfig(search_path=BASE_DIR)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Support both SECRET_KEY and the common hosting convention DJANGO_SECRET_KEY.
@@ -84,6 +98,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'logistics.middleware.AbsoluteSessionExpiryMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'logistics.middleware.BlockAdminForManagingDirectorMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -102,12 +117,21 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'logistics.context_processors.app_permissions',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'roshe_logistics.wsgi.application'
+
+# Sessions
+# Logout users after 1 hour (absolute expiry from login by default).
+SESSION_COOKIE_AGE = 60 * 60
+
+# Login 2FA
+# Send OTP codes to a central company mailbox by default.
+LOGIN_OTP_EMAIL = config("LOGIN_OTP_EMAIL", default="roshegrouplimited@gmail.com").strip()
 
 # Database
 # Prefer Postgres when configured, but fall back to SQLite at startup if Postgres

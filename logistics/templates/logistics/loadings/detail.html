@@ -9,9 +9,11 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between">
                     <h3><i class="bi bi-box"></i> {{ loading.container_number }}</h3>
+                    {% if user.role == 'superuser' or user.role == 'managing_director' %}
                     <a href="{% url 'loading_update' loading.id %}" class="btn btn-sm btn-warning">
                         <i class="bi bi-pencil"></i> Edit
                     </a>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
@@ -86,9 +88,11 @@
                     {% if has_transit %}
                         <p>Status: <span class="badge bg-info">{{ transit.get_status_display }}</span></p>
                         <p><small class="text-muted">ETA ({{ transit.get_eta_location_display|default:"-" }}): {{ transit.eta|date:"Y-m-d"|default:"-" }}</small></p>
+                        {% if user.role == 'superuser' or user.role == 'managing_director' %}
                         <a href="{% url 'transit_update' transit.id %}" class="btn btn-sm btn-warning w-100">
                             <i class="bi bi-pencil"></i> Update Transit
                         </a>
+                        {% endif %}
                     {% else %}
                         <p class="text-muted">No transit record yet</p>
                         <a href="{% url 'transit_create' %}?container_number={{ loading.container_number|urlencode }}" class="btn btn-sm btn-primary w-100">
@@ -107,14 +111,20 @@
                         <p>Charged: ${{ loading.payment.amount_charged }}</p>
                         <p>Paid: ${{ loading.payment.amount_paid }}</p>
                         <p>Balance: <strong>${{ loading.payment.balance }}</strong></p>
+                        {% if user.role == 'superuser' or user.role == 'managing_director' %}
                         <a href="{% url 'payment_update' loading.payment.id %}" class="btn btn-sm btn-warning w-100">
                             <i class="bi bi-pencil"></i> Update Payment
                         </a>
+                        {% endif %}
                     {% else %}
                         <p class="text-muted">No payment record yet</p>
+                        {% if app_perms.create_invoices %}
                         <a href="{% url 'payment_create_with_loading' loading.id %}" class="btn btn-sm btn-primary w-100">
                             <i class="bi bi-plus"></i> Add Payment
                         </a>
+                        {% else %}
+                        <p class="text-muted mb-0"><small>You do not have permission to create invoices.</small></p>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>

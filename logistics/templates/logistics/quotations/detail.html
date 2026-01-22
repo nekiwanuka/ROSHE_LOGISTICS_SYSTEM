@@ -25,9 +25,11 @@
             <a href="{% url 'quote_pdf' quote.id %}" class="btn btn-primary">
                 <i class="bi bi-download"></i> Download PDF
             </a>
+            {% if user.role == 'superuser' or user.role == 'managing_director' %}
             <a href="{% url 'quote_update' quote.id %}" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Edit
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -139,12 +141,9 @@
                                 {% endif %}
                             <form method="post" action="{% url 'quote_convert_to_invoice' quote.id %}">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-primary" {% if user.role == 'data_entry' or quote.status != 'accepted' %}disabled{% endif %}>
+                                <button type="submit" class="btn btn-primary" {% if quote.status != 'accepted' %}disabled{% endif %}>
                                     <i class="bi bi-arrow-repeat"></i> Convert to Invoice
                                 </button>
-                                {% if user.role == 'data_entry' %}
-                                <div class="text-muted small mt-1">Only supervisors can convert quotations to invoices.</div>
-                                {% endif %}
                             </form>
                             {% else %}
                             <div class="alert alert-info mb-0">This quotation has already been converted to an invoice.</div>

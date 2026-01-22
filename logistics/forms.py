@@ -6,6 +6,8 @@ from django.contrib.auth.forms import UserCreationForm
 from .models import CustomUser, Client, Loading, Transit, Payment, PaymentTransaction, ContainerReturn
 from .models import Quote
 
+from .permissions import ROLE_DEFAULTS, get_app_permissions
+
 
 def _decimal_text_widget(*, css_class: str = 'form-control', placeholder: str = ''):
     """Prefer text inputs for decimals to avoid browser rounding/coercion from type=number."""
@@ -64,6 +66,54 @@ class UserRegistrationForm(UserCreationForm):
             'class': 'form-control'
         })
     )
+
+    perm_manage_users = forms.BooleanField(
+        required=False,
+        label='Can manage users',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_manage_users'}),
+    )
+
+    perm_create_clients = forms.BooleanField(
+        required=False,
+        label='Can create clients',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_clients'}),
+    )
+    perm_create_quotations = forms.BooleanField(
+        required=False,
+        label='Can create quotations',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_quotations'}),
+    )
+    perm_create_invoices = forms.BooleanField(
+        required=False,
+        label='Can create invoices',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_invoices'}),
+    )
+    perm_create_receipts = forms.BooleanField(
+        required=False,
+        label='Can record receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_receipts'}),
+    )
+    perm_access_reports = forms.BooleanField(
+        required=False,
+        label='Can access reports/exports',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_access_reports'}),
+    )
+
+    perm_view_revenue = forms.BooleanField(
+        required=False,
+        label='Can view revenue totals',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_view_revenue'}),
+    )
+    perm_approve_verify = forms.BooleanField(
+        required=False,
+        label='Can approve/verify receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_approve_verify'}),
+    )
+    perm_void_unvoid = forms.BooleanField(
+        required=False,
+        label='Can void/unvoid receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_void_unvoid'}),
+    )
     password1 = forms.CharField(
         label='Password',
         widget=forms.PasswordInput(attrs={
@@ -85,13 +135,149 @@ class UserRegistrationForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         request_user = kwargs.pop('request_user', None)
+        can_configure_permissions = bool(kwargs.pop('can_configure_permissions', False))
         super().__init__(*args, **kwargs)
 
-        # Only Django superusers may create elevated roles.
-        if not getattr(request_user, 'is_superuser', False):
-            self.fields['role'].choices = [
-                ('data_entry', 'Data Entry User'),
-            ]
+        # Role assignment rules:
+        # - Superuser: may create Managing Director, Manager, Accountant, Front Desk.
+        # - Managing Director: may create Manager, Accountant, Front Desk.
+        # - Manager: may create Accountant, Front Desk.
+        # - Others: no user creation rights.
+        creator_role = getattr(request_user, 'role', None)
+        is_super = bool(getattr(request_user, 'is_superuser', False))
+
+        if is_super:
+            allowed = ['managing_director', 'manager', 'accountant', 'data_entry']
+        elif creator_role == 'managing_director':
+            allowed = ['manager', 'accountant', 'data_entry']
+        elif creator_role == 'manager':
+            allowed = ['accountant', 'data_entry']
+        else:
+            allowed = []
+
+        # Never allow creating a superuser via the UI.
+        role_map = dict(CustomUser.ROLE_CHOICES)
+        self.fields['role'].choices = [(key, role_map[key]) for key in allowed if key in role_map]
+
+        # Permission defaults follow the selected role.
+        # Only privileged admins (MD/superuser) may override these flags.
+        selected_role = None
+        try:
+            selected_role = (self.data.get('role') or self.initial.get('role') or '').strip()
+        except Exception:
+            selected_role = None
+
+        defaults = ROLE_DEFAULTS.get(selected_role or 'data_entry', ROLE_DEFAULTS['data_entry'])
+        self.fields['perm_manage_users'].initial = defaults.get('manage_users', False)
+        self.fields['perm_create_clients'].initial = defaults.get('create_clients', False)
+        self.fields['perm_create_quotations'].initial = defaults.get('create_quotations', False)
+        self.fields['perm_create_invoices'].initial = defaults.get('create_invoices', False)
+        self.fields['perm_create_receipts'].initial = defaults.get('create_receipts', False)
+        self.fields['perm_access_reports'].initial = defaults.get('access_reports', False)
+        self.fields['perm_view_revenue'].initial = defaults.get('view_revenue', False)
+        self.fields['perm_approve_verify'].initial = defaults.get('approve_verify_receipts', False)
+        self.fields['perm_void_unvoid'].initial = defaults.get('void_unvoid_receipts', False)
+
+        if not can_configure_permissions:
+            for name in (
+                'perm_manage_users',
+                'perm_create_clients',
+                'perm_create_quotations',
+                'perm_create_invoices',
+                'perm_create_receipts',
+                'perm_access_reports',
+                'perm_view_revenue',
+                'perm_approve_verify',
+                'perm_void_unvoid',
+            ):
+                self.fields[name].disabled = True
+
+    def clean_role(self):
+        role = self.cleaned_data.get('role')
+        # choices are already filtered in __init__, but enforce on POST too.
+        allowed = {key for key, _ in self.fields['role'].choices}
+        if role not in allowed:
+            raise forms.ValidationError('You are not allowed to create a user with this role.')
+        return role
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+
+        # Store per-user permission overrides (only for non-privileged accounts).
+        role = getattr(user, 'role', None)
+        if role not in {'superuser', 'managing_director'}:
+            user.permission_overrides = {
+                'manage_users': bool(self.cleaned_data.get('perm_manage_users')),
+                'create_clients': bool(self.cleaned_data.get('perm_create_clients')),
+                'create_quotations': bool(self.cleaned_data.get('perm_create_quotations')),
+                'create_invoices': bool(self.cleaned_data.get('perm_create_invoices')),
+                'create_receipts': bool(self.cleaned_data.get('perm_create_receipts')),
+                'access_reports': bool(self.cleaned_data.get('perm_access_reports')),
+                'view_revenue': bool(self.cleaned_data.get('perm_view_revenue')),
+                'approve_verify_receipts': bool(self.cleaned_data.get('perm_approve_verify')),
+                'void_unvoid_receipts': bool(self.cleaned_data.get('perm_void_unvoid')),
+            }
+        else:
+            user.permission_overrides = {}
+
+        if commit:
+            user.save()
+        return user
+
+
+class UserPermissionOverridesForm(forms.Form):
+    manage_users = forms.BooleanField(
+        required=False,
+        label='Can manage users',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_manage_users'}),
+    )
+    create_clients = forms.BooleanField(
+        required=False,
+        label='Can create clients',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_clients'}),
+    )
+    create_quotations = forms.BooleanField(
+        required=False,
+        label='Can create quotations',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_quotations'}),
+    )
+    create_invoices = forms.BooleanField(
+        required=False,
+        label='Can create invoices',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_invoices'}),
+    )
+    create_receipts = forms.BooleanField(
+        required=False,
+        label='Can record receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_create_receipts'}),
+    )
+    access_reports = forms.BooleanField(
+        required=False,
+        label='Can access reports dashboard',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_access_reports'}),
+    )
+    view_revenue = forms.BooleanField(
+        required=False,
+        label='Can view revenue totals',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_view_revenue'}),
+    )
+    approve_verify_receipts = forms.BooleanField(
+        required=False,
+        label='Can approve/verify receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_approve_verify'}),
+    )
+    void_unvoid_receipts = forms.BooleanField(
+        required=False,
+        label='Can void/unvoid receipts',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'perm_void_unvoid'}),
+    )
+
+    def __init__(self, *args, user: CustomUser | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user is not None:
+            effective = get_app_permissions(user)
+            for field_name in self.fields:
+                self.fields[field_name].initial = bool(effective.get(field_name, False))
 
 
 class ClientForm(forms.ModelForm):

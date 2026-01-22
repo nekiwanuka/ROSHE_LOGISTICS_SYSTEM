@@ -40,6 +40,13 @@ Database (example for Postgres):
 - `DB_USER=...`
 - `DB_PASSWORD=...`
 
+Login security (OTP for every login):
+
+- Configure SMTP (see `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, etc)
+- `LOGIN_OTP_EMAIL=roshegrouplimited@gmail.com` (or your preferred company mailbox)
+
+Note: OTP is required for all users at login; if email isn’t configured, users won’t be able to complete login.
+
 ### 4) Install requirements
 In the cPanel Python App UI (or via SSH/terminal):
 

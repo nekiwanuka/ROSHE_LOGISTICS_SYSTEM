@@ -6,9 +6,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-file-earmark-pdf"></i> Invoices</h1>
+        {% if app_perms.create_invoices %}
         <a href="{% url 'payment_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add Invoice
         </a>
+        {% endif %}
     </div>
 
     <!-- Summary Cards -->
@@ -96,19 +98,43 @@
                         <td>{{ payment.payment_date|date:"Y-m-d"|default:"—" }}</td>
                         <td>{{ payment.get_payment_method_display|default:"—" }}</td>
                         <td>
-                            <div class="btn-group" role="group">
-                                <a href="{% url 'payment_detail' payment.id %}" class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-receipt"></i> Details
+                            <div class="d-flex flex-wrap gap-1">
+                                <a
+                                    href="{% url 'payment_detail' payment.id %}"
+                                    class="btn btn-sm btn-outline-secondary py-1 px-2"
+                                    title="Details"
+                                >
+                                    <i class="bi bi-receipt"></i>
+                                    <span class="d-none d-xl-inline"> Details</span>
                                 </a>
-                                <a href="{% url 'payment_invoice' payment.id %}?preview=1" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-pdf-popup="1" data-popup-title="Invoice Preview">
-                                    <i class="bi bi-eye"></i> Preview
+                                <a
+                                    href="{% url 'payment_invoice' payment.id %}?preview=1"
+                                    class="btn btn-sm btn-outline-secondary py-1 px-2"
+                                    target="_blank"
+                                    rel="noopener"
+                                    data-pdf-popup="1"
+                                    data-popup-title="Invoice Preview"
+                                    title="Preview"
+                                >
+                                    <i class="bi bi-eye"></i>
+                                    <span class="d-none d-xl-inline"> Preview</span>
                                 </a>
-                                <a href="{% url 'payment_invoice' payment.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-file-earmark-pdf"></i> Invoice
+                                <a
+                                    href="{% url 'payment_invoice' payment.id %}"
+                                    class="btn btn-sm btn-outline-primary py-1 px-2"
+                                    title="Download Invoice"
+                                >
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                    <span class="d-none d-xl-inline"> Invoice</span>
                                 </a>
                                 {% if user.role == 'superuser' or user.role == 'managing_director' %}
-                                <a href="{% url 'payment_update' payment.id %}" class="btn btn-sm btn-warning">
-                                    <i class="bi bi-pencil"></i> Edit
+                                <a
+                                    href="{% url 'payment_update' payment.id %}"
+                                    class="btn btn-sm btn-warning py-1 px-2"
+                                    title="Edit"
+                                >
+                                    <i class="bi bi-pencil"></i>
+                                    <span class="d-none d-xl-inline"> Edit</span>
                                 </a>
                                 {% endif %}
                             </div>

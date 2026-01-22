@@ -362,7 +362,7 @@
                         </a>
                     </li>
 
-                    {% if user.role != 'data_entry' %}
+                    {% if app_perms.access_reports %}
                     <li class="nav-item">
                         <a class="nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'reports_dashboard' %}">
                             <i class="bi bi-file-earmark-pdf"></i> Reports
@@ -370,18 +370,20 @@
                     </li>
                     {% endif %}
 
-                    {% if user.role == 'superuser' or user.role == 'managing_director' %}
+                    {% if app_perms.manage_users %}
                     <li class="nav-item">
                         <a class="nav-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'user_list' %}">
                             <i class="bi bi-shield-lock"></i> Users
                         </a>
                     </li>
                     
+                    {% if user.role == 'superuser' or user.role == 'managing_director' %}
                     <li class="nav-item">
                         <a class="nav-link {% if 'audit' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'audit_logs' %}">
                             <i class="bi bi-file-text"></i> Audit Logs
                         </a>
                     </li>
+                    {% endif %}
                     {% endif %}
                 </ul>
             </nav>
@@ -429,7 +431,9 @@
                     <h6 class="footer-heading">Operations</h6>
                     <ul class="footer-links list-unstyled mb-0">
                         <li><i class="bi bi-house-door"></i><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                        {% if app_perms.access_reports %}
                         <li><i class="bi bi-file-earmark-text"></i><a href="{% url 'reports_dashboard' %}">Reports & Analytics</a></li>
+                        {% endif %}
                         <li><i class="bi bi-box-seam"></i><a href="{% url 'loading_list' %}">Cargo Registry</a></li>
                         <li><i class="bi bi-file-earmark-pdf"></i><a href="{% url 'payment_list' %}">Invoices</a></li>
                     </ul>
