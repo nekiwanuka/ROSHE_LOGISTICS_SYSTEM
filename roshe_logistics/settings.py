@@ -137,6 +137,9 @@ LOGIN_OTP_EMAIL = config("LOGIN_OTP_EMAIL", default="roshegrouplimited@gmail.com
 # If False, the app will log users in normally (and can optionally still send a login OTP/alert email).
 REQUIRE_LOGIN_OTP = config("REQUIRE_LOGIN_OTP", default=True, cast=bool)
 
+# If False, do not send any OTP/login alert emails at all.
+SEND_LOGIN_OTP_EMAIL = config("SEND_LOGIN_OTP_EMAIL", default=True, cast=bool)
+
 # Database
 # Prefer Postgres when configured, but fall back to SQLite at startup if Postgres
 # is unreachable/misconfigured (so the app can still boot).

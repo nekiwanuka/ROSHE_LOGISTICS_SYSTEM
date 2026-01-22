@@ -88,6 +88,9 @@ def _generate_otp_code() -> str:
 
 
 def _send_login_otp(request, user, *, store_in_session: bool = True, fail_silently: bool = False, purpose: str = 'verify') -> None:
+    if not bool(getattr(settings, 'SEND_LOGIN_OTP_EMAIL', True)):
+        return
+
     code = _generate_otp_code()
     if store_in_session:
         request.session['pre_2fa_user_id'] = user.pk
