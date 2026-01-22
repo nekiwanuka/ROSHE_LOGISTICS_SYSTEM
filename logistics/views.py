@@ -75,65 +75,6 @@ def _can_view_revenue(user) -> bool:
     return has_app_permission(user, 'view_revenue')
 
 
-def _requires_2fa(user) -> bool:
-    if not user:
-        return False
-    return bool(getattr(settings, 'REQUIRE_LOGIN_OTP', True))
-
-
-def _generate_otp_code() -> str:
-    import secrets
-
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
-def _send_login_otp(request, user, *, store_in_session: bool = True, fail_silently: bool = False, purpose: str = 'verify') -> None:
-    send_email_enabled = bool(getattr(settings, 'SEND_LOGIN_OTP_EMAIL', True))
-    if not send_email_enabled:
-        # If OTP verification is required but email sending is disabled, fail fast with a clear message.
-        if store_in_session:
-            raise ValueError(
-                'OTP email sending is disabled (SEND_LOGIN_OTP_EMAIL=False). '
-                'Either enable it or set REQUIRE_LOGIN_OTP=False to disable login verification.'
-            )
-        return
-
-    code = _generate_otp_code()
-    if store_in_session:
-        request.session['pre_2fa_user_id'] = user.pk
-        request.session['pre_2fa_otp'] = code
-        request.session['pre_2fa_otp_expires_at'] = (timezone.now() + timedelta(minutes=10)).isoformat()
-        request.session['pre_2fa_otp_attempts'] = 0
-
-    to_email = (getattr(settings, 'LOGIN_OTP_EMAIL', '') or '').strip()
-    if not to_email:
-        raise ValueError('LOGIN_OTP_EMAIL is not configured.')
-
-    ip = (request.META.get('REMOTE_ADDR') or '').strip()
-    username = getattr(user, 'username', '')
-    role = getattr(user, 'role', '')
-
-    if purpose == 'notify':
-        subject = 'ROSHE LOGISTICS Login Alert'
-        body = (
-            f"Successful login for user: {username}\n"
-            f"Role: {role}\n"
-            f"IP: {ip}\n\n"
-            f"OTP (for reference): {code}\n\n"
-            "No action is required. If you did not sign in, please contact your administrator immediately."
-        )
-    else:
-        subject = 'ROSHE LOGISTICS Login Verification Code'
-        body = (
-            f"Login attempt for user: {username}\n"
-            f"Role: {role}\n"
-            f"IP: {ip}\n\n"
-            f"Verification code: {code}\n\n"
-            "This code expires in 10 minutes. If you did not attempt to sign in, please contact your administrator."
-        )
-    EmailMessage(subject=subject, body=body, to=[to_email]).send(fail_silently=fail_silently)
-
-
 def _finalize_login(request, user):
     """Complete login and set absolute session expiry timestamp."""
     login(request, user)
@@ -316,7 +257,6 @@ def register_view(request):
             'void_unvoid_receipts': True,
             'view_revenue': True,
             'access_reports': True,
-            'requires_2fa': True,
         },
         'managing_director': {
             'label': 'Managing Director',
@@ -332,7 +272,6 @@ def register_view(request):
             'void_unvoid_receipts': True,
             'view_revenue': True,
             'access_reports': True,
-            'requires_2fa': True,
         },
         'manager': {
             'label': 'Manager',
@@ -348,7 +287,6 @@ def register_view(request):
             'void_unvoid_receipts': False,
             'view_revenue': False,
             'access_reports': True,
-            'requires_2fa': False,
         },
         'accountant': {
             'label': 'Accountant',
@@ -364,7 +302,6 @@ def register_view(request):
             'void_unvoid_receipts': False,
             'view_revenue': False,
             'access_reports': True,
-            'requires_2fa': False,
         },
         'data_entry': {
             'label': 'Front Desk Operator',
@@ -380,7 +317,6 @@ def register_view(request):
             'void_unvoid_receipts': False,
             'view_revenue': False,
             'access_reports': False,
-            'requires_2fa': False,
         },
     }
     if request.method == 'POST':

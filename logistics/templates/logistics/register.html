@@ -137,8 +137,7 @@
                                             <label class="form-check-label" for="perm_access_reports">Can access reports dashboard</label>
                                         </div>
                                         <div class="form-check mt-2">
-                                            <input class="form-check-input" type="checkbox" id="perm_requires_2fa" disabled>
-                                            <label class="form-check-label" for="perm_requires_2fa">Requires 2-step login (email code)</label>
+                                            
                                         </div>
                                     </div>
                                 </div>
@@ -225,7 +224,7 @@
             setChecked('perm_view_revenue', p.view_revenue);
             setChecked('perm_approve_verify', p.approve_verify_receipts);
             setChecked('perm_void_unvoid', p.void_unvoid_receipts);
-            setChecked('perm_requires_2fa', p.requires_2fa);
+            
         };
 
         roleSelect.addEventListener('change', update);

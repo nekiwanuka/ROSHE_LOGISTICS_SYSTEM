@@ -129,16 +129,8 @@ WSGI_APPLICATION = 'roshe_logistics.wsgi.application'
 # Logout users after 1 hour (absolute expiry from login by default).
 SESSION_COOKIE_AGE = 60 * 60
 
-# Login 2FA
-# Send OTP codes to a central company mailbox by default.
-LOGIN_OTP_EMAIL = config("LOGIN_OTP_EMAIL", default="roshegrouplimited@gmail.com").strip()
-
-# If True, users must enter an emailed OTP to complete login.
-# If False, the app will log users in normally (and can optionally still send a login OTP/alert email).
-REQUIRE_LOGIN_OTP = config("REQUIRE_LOGIN_OTP", default=True, cast=bool)
-
-# If False, do not send any OTP/login alert emails at all.
-SEND_LOGIN_OTP_EMAIL = config("SEND_LOGIN_OTP_EMAIL", default=True, cast=bool)
+# Login security
+# NOTE: Login verification/OTP has been removed for now.
 
 # Database
 # Prefer Postgres when configured, but fall back to SQLite at startup if Postgres
