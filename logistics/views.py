@@ -280,77 +280,10 @@ def login_view(request):
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            if _requires_2fa(user):
-                try:
-                    _send_login_otp(request, user, store_in_session=True, fail_silently=False, purpose='verify')
-                except Exception as exc:
-                    hint = ''
-                    if 'Errno 99' in str(exc):
-                        hint = ' (Tip: set EMAIL_PREFER_IPV4=True or disable OTP with REQUIRE_LOGIN_OTP=False)'
-                    messages.error(request, f'Login verification could not be started: {exc}{hint}')
-                    return redirect('login')
-                return redirect('two_factor_verify')
-
-            # OTP is not required: proceed with login, and send an alert/OTP email best-effort.
-            try:
-                _send_login_otp(request, user, store_in_session=False, fail_silently=True, purpose='notify')
-            except Exception:
-                pass
-
             _finalize_login(request, user)
             return redirect('dashboard')
         messages.error(request, 'Invalid username or password')
     return render(request, 'logistics/login.html')
-
-
-def two_factor_verify(request):
-    """Second step (email OTP) for all users."""
-    user_id = request.session.get('pre_2fa_user_id')
-    if not user_id:
-        return redirect('login')
-
-    user = get_object_or_404(CustomUser, pk=user_id)
-    if not _requires_2fa(user):
-        _finalize_login(request, user)
-        for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
-            request.session.pop(k, None)
-        return redirect('dashboard')
-
-    expires_raw = request.session.get('pre_2fa_otp_expires_at')
-    try:
-        expires_at = timezone.make_aware(datetime.fromisoformat(expires_raw)) if expires_raw else None
-    except Exception:
-        expires_at = None
-
-    if not expires_at or timezone.now() > expires_at:
-        # Expired: force resend.
-        request.session.pop('pre_2fa_otp', None)
-        messages.error(request, 'Verification code expired. Please login again to get a new code.')
-        return redirect('login')
-
-    if request.method == 'POST':
-        entered = (request.POST.get('code') or '').strip()
-        attempts = int(request.session.get('pre_2fa_otp_attempts') or 0)
-        attempts += 1
-        request.session['pre_2fa_otp_attempts'] = attempts
-
-        if attempts > 10:
-            for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
-                request.session.pop(k, None)
-            messages.error(request, 'Too many attempts. Please login again.')
-            return redirect('login')
-
-        if entered != request.session.get('pre_2fa_otp'):
-            messages.error(request, 'Invalid verification code.')
-            return render(request, 'logistics/two_factor_verify.html', {'email': getattr(settings, 'LOGIN_OTP_EMAIL', '')})
-
-        # Success
-        for k in ['pre_2fa_user_id', 'pre_2fa_otp', 'pre_2fa_otp_expires_at', 'pre_2fa_otp_attempts']:
-            request.session.pop(k, None)
-        _finalize_login(request, user)
-        return redirect('dashboard')
-
-    return render(request, 'logistics/two_factor_verify.html', {'email': getattr(settings, 'LOGIN_OTP_EMAIL', '')})
 
 
 def logout_view(request):
