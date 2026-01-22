@@ -78,8 +78,7 @@ def _can_view_revenue(user) -> bool:
 def _requires_2fa(user) -> bool:
     if not user:
         return False
-    # Enable for every user.
-    return True
+    return bool(getattr(settings, 'REQUIRE_LOGIN_OTP', True))
 
 
 def _generate_otp_code() -> str:
@@ -88,12 +87,13 @@ def _generate_otp_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def _send_login_otp(request, user) -> None:
+def _send_login_otp(request, user, *, store_in_session: bool = True, fail_silently: bool = False, purpose: str = 'verify') -> None:
     code = _generate_otp_code()
-    request.session['pre_2fa_user_id'] = user.pk
-    request.session['pre_2fa_otp'] = code
-    request.session['pre_2fa_otp_expires_at'] = (timezone.now() + timedelta(minutes=10)).isoformat()
-    request.session['pre_2fa_otp_attempts'] = 0
+    if store_in_session:
+        request.session['pre_2fa_user_id'] = user.pk
+        request.session['pre_2fa_otp'] = code
+        request.session['pre_2fa_otp_expires_at'] = (timezone.now() + timedelta(minutes=10)).isoformat()
+        request.session['pre_2fa_otp_attempts'] = 0
 
     to_email = (getattr(settings, 'LOGIN_OTP_EMAIL', '') or '').strip()
     if not to_email:
@@ -103,15 +103,25 @@ def _send_login_otp(request, user) -> None:
     username = getattr(user, 'username', '')
     role = getattr(user, 'role', '')
 
-    subject = 'ROSHE LOGISTICS Login Verification Code'
-    body = (
-        f"Login attempt for user: {username}\n"
-        f"Role: {role}\n"
-        f"IP: {ip}\n\n"
-        f"Verification code: {code}\n\n"
-        "This code expires in 10 minutes. If you did not attempt to sign in, please contact your administrator."
-    )
-    EmailMessage(subject=subject, body=body, to=[to_email]).send(fail_silently=False)
+    if purpose == 'notify':
+        subject = 'ROSHE LOGISTICS Login Alert'
+        body = (
+            f"Successful login for user: {username}\n"
+            f"Role: {role}\n"
+            f"IP: {ip}\n\n"
+            f"OTP (for reference): {code}\n\n"
+            "No action is required. If you did not sign in, please contact your administrator immediately."
+        )
+    else:
+        subject = 'ROSHE LOGISTICS Login Verification Code'
+        body = (
+            f"Login attempt for user: {username}\n"
+            f"Role: {role}\n"
+            f"IP: {ip}\n\n"
+            f"Verification code: {code}\n\n"
+            "This code expires in 10 minutes. If you did not attempt to sign in, please contact your administrator."
+        )
+    EmailMessage(subject=subject, body=body, to=[to_email]).send(fail_silently=fail_silently)
 
 
 def _finalize_login(request, user):
@@ -260,12 +270,22 @@ def login_view(request):
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
+            if _requires_2fa(user):
+                try:
+                    _send_login_otp(request, user, store_in_session=True, fail_silently=False, purpose='verify')
+                except Exception as exc:
+                    messages.error(request, f'Login verification could not be started: {exc}')
+                    return redirect('login')
+                return redirect('two_factor_verify')
+
+            # OTP is not required: proceed with login, and send an alert/OTP email best-effort.
             try:
-                _send_login_otp(request, user)
-            except Exception as exc:
-                messages.error(request, f'Login verification could not be started: {exc}')
-                return redirect('login')
-            return redirect('two_factor_verify')
+                _send_login_otp(request, user, store_in_session=False, fail_silently=True, purpose='notify')
+            except Exception:
+                pass
+
+            _finalize_login(request, user)
+            return redirect('dashboard')
         messages.error(request, 'Invalid username or password')
     return render(request, 'logistics/login.html')
 
