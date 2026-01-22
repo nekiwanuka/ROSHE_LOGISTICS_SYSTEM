@@ -88,7 +88,14 @@ def _generate_otp_code() -> str:
 
 
 def _send_login_otp(request, user, *, store_in_session: bool = True, fail_silently: bool = False, purpose: str = 'verify') -> None:
-    if not bool(getattr(settings, 'SEND_LOGIN_OTP_EMAIL', True)):
+    send_email_enabled = bool(getattr(settings, 'SEND_LOGIN_OTP_EMAIL', True))
+    if not send_email_enabled:
+        # If OTP verification is required but email sending is disabled, fail fast with a clear message.
+        if store_in_session:
+            raise ValueError(
+                'OTP email sending is disabled (SEND_LOGIN_OTP_EMAIL=False). '
+                'Either enable it or set REQUIRE_LOGIN_OTP=False to disable login verification.'
+            )
         return
 
     code = _generate_otp_code()
@@ -277,7 +284,10 @@ def login_view(request):
                 try:
                     _send_login_otp(request, user, store_in_session=True, fail_silently=False, purpose='verify')
                 except Exception as exc:
-                    messages.error(request, f'Login verification could not be started: {exc}')
+                    hint = ''
+                    if 'Errno 99' in str(exc):
+                        hint = ' (Tip: set EMAIL_PREFER_IPV4=True or disable OTP with REQUIRE_LOGIN_OTP=False)'
+                    messages.error(request, f'Login verification could not be started: {exc}{hint}')
                     return redirect('login')
                 return redirect('two_factor_verify')
 
