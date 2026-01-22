@@ -1,0 +1,231 @@
+/* Payments (Invoices) page styling - scoped */
+
+.payments-page {
+  --pay-radius: 8px;
+  --pay-shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.06);
+  --pay-border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.payments-page .card {
+  border-radius: var(--pay-radius);
+  border: none;
+  box-shadow: var(--pay-shadow-sm);
+}
+
+/* Page header */
+.payments-page .page-hero {
+  border-radius: var(--pay-radius);
+  background: #fff;
+  border: var(--pay-border);
+  border-top: 4px solid var(--secondary-color);
+}
+
+.payments-page .page-kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(0, 51, 102, 0.70);
+  margin-bottom: 6px;
+}
+
+.payments-page .page-title {
+  font-weight: 900;
+  color: var(--primary-color);
+}
+
+.payments-page .page-title i {
+  margin-right: 6px;
+  color: var(--primary-color);
+}
+
+.payments-page .page-subtitle {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Make header buttons more compact so they fit on one line */
+.payments-page .page-actions .btn {
+  font-size: 0.84rem;
+  padding: 0.34rem 0.55rem;
+}
+
+@media (max-width: 575px) {
+  .payments-page .page-actions .btn {
+    font-size: 0.80rem;
+    padding: 0.3rem 0.5rem;
+  }
+}
+
+/* Summary cards */
+.payments-page .summary-card {
+  border-radius: var(--pay-radius);
+  background: #fff;
+  border: var(--pay-border);
+  box-shadow: var(--pay-shadow-sm);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.payments-page .summary-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.payments-page .summary-icon i {
+  font-size: 20px;
+  color: var(--primary-color);
+}
+
+.payments-page .bg-soft-primary { background: rgba(0, 51, 102, 0.10); }
+.payments-page .bg-soft-success { background: rgba(25, 135, 84, 0.12); }
+.payments-page .bg-soft-warning { background: rgba(242, 203, 63, 0.25); }
+
+.payments-page .summary-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.payments-page .summary-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--primary-color);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.payments-page .summary-note {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.50);
+  margin-top: 2px;
+}
+
+/* Filter */
+.payments-page .filter-card {
+  border: var(--pay-border);
+}
+
+.payments-page .filter-title {
+  font-weight: 800;
+  color: var(--primary-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.payments-page .filter-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.payments-page .filter-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  color: rgba(0, 0, 0, 0.72);
+  background: #fff;
+  font-weight: 650;
+  font-size: 0.90rem;
+}
+
+/* Compact table action buttons to keep them on one row */
+.payments-page .table-card .btn.btn-sm {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.1;
+}
+
+.payments-page .table-card .btn.btn-sm i {
+  font-size: 0.86rem;
+}
+
+.payments-page .filter-pill:hover {
+  border-color: rgba(0, 51, 102, 0.35);
+  color: var(--primary-color);
+}
+
+.payments-page .filter-pill.active {
+  background: rgba(242, 203, 63, 0.28);
+  border-color: rgba(242, 203, 63, 0.60);
+  color: var(--primary-color);
+}
+
+/* Table */
+.payments-page .table-card {
+  border: var(--pay-border);
+}
+
+/* Action buttons follow the same pattern as /clients/ (Bootstrap flex + gap). */
+
+.payments-page .table thead th {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.payments-page .link-strong {
+  font-weight: 800;
+  text-decoration: none;
+  color: var(--primary-color);
+}
+
+.payments-page .link-strong:hover {
+  text-decoration: underline;
+}
+
+.payments-page .amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.payments-page .badge {
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-weight: 800;
+}
+
+.payments-page .badge-paid {
+  background: rgba(25, 135, 84, 0.14);
+  color: #0f5132;
+  border: 1px solid rgba(25, 135, 84, 0.28);
+}
+
+.payments-page .badge-due {
+  background: rgba(220, 53, 69, 0.14);
+  color: #842029;
+  border: 1px solid rgba(220, 53, 69, 0.28);
+}
+
+/* Empty state */
+.payments-page .empty-state {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.payments-page .empty-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 51, 102, 0.08);
+  color: rgba(0, 51, 102, 0.85);
+}
+
+.payments-page .empty-icon i {
+  font-size: 22px;
+}

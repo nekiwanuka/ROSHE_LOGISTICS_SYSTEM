@@ -23,6 +23,9 @@
         .navbar {
             background-color: var(--primary-color) !important;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1030;
         }
         
         .navbar-brand {
@@ -40,37 +43,73 @@
         }
         
         .sidebar {
-            background-color: white;
+            background-color: #ffffff;
             min-height: calc(100vh - 56px);
-            padding: 20px 0;
-            box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+            padding: 16px 10px;
+            border-right: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            position: sticky;
+            top: 56px;
+            height: calc(100vh - 56px);
+            overflow-y: auto;
         }
-        
+
         .sidebar .nav-link {
             color: var(--primary-color);
-            padding: 10px 20px;
-            margin: 5px 10px;
-            border-radius: 5px;
-            transition: all 0.3s ease;
+            padding: 9px 12px;
+            margin: 4px 6px;
+            border-radius: 6px;
+            transition: background-color 0.15s ease, box-shadow 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            line-height: 1.2;
         }
-        
+
+        .sidebar .nav-link i {
+            width: 18px;
+            font-size: 1.0rem;
+            color: rgba(0, 51, 102, 0.85);
+        }
+
         .sidebar .nav-link:hover {
-            background-color: var(--secondary-color);
+            background-color: rgba(242, 203, 63, 0.18);
             color: var(--primary-color);
         }
-        
+
         .sidebar .nav-link.active {
-            background-color: var(--secondary-color);
+            background-color: rgba(242, 203, 63, 0.32);
             color: var(--primary-color);
-            font-weight: bold;
+            font-weight: 800;
+            box-shadow: inset 3px 0 0 var(--secondary-color);
         }
-        
+
         .main-content {
-            padding: 30px;
+            padding: clamp(16px, 2.4vw, 30px);
+            min-height: calc(100vh - 56px);
         }
 
         .guest-layout {
             margin-top: 60px;
+        }
+
+        @media (max-width: 767px) {
+            .sidebar {
+                position: relative;
+                top: 0;
+                height: auto;
+                min-height: auto;
+                padding: 12px 8px;
+                box-shadow: none;
+                border-right: none;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            }
+
+            .main-content {
+                padding: 16px;
+            }
         }
         
         .card {
@@ -78,12 +117,20 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin-bottom: 20px;
             border-top: 3px solid var(--secondary-color);
+            border-radius: 8px;
         }
         
         .card-header {
             background-color: var(--primary-color);
             color: white;
             border-bottom: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        .card-footer {
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
         }
         
         .btn-primary {
@@ -334,7 +381,7 @@
                     
                     <li class="nav-item">
                         <a class="nav-link {% if 'transit' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'transit_list' %}">
-                            <i class="bi bi-ship"></i> Transit
+                            <i class="bi bi-truck"></i> Transit
                         </a>
                     </li>
                     

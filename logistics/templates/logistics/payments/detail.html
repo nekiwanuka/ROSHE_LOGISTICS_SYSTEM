@@ -177,7 +177,7 @@
                                     Recorded by {{ transaction.created_by.username }} on {{ transaction.created_at|date:"M d, Y H:i" }}
                                 </div>
                                 {% if can_verify %}
-                                <form method="post" class="verification-form w-100 w-md-auto">
+                                <form method="post" class="receipt-status-form w-100 w-md-auto">
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="verify_transaction">
                                     <input type="hidden" name="transaction_id" value="{{ transaction.pk }}">
@@ -193,7 +193,7 @@
                                             <button type="submit" class="btn btn-outline-primary btn-sm w-100">Update Status</button>
                                         </div>
                                         <div class="col-12">
-                                            <textarea name="verification_notes" class="form-control form-control-sm" rows="1" placeholder="Verification note (optional)">{{ transaction.verification_notes|default_if_none:'' }}</textarea>
+                                            <textarea name="verification_notes" class="form-control form-control-sm" rows="1" placeholder="Status note (optional)">{{ transaction.verification_notes|default_if_none:'' }}</textarea>
                                         </div>
                                     </div>
                                 </form>

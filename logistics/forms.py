@@ -225,6 +225,43 @@ class UserRegistrationForm(UserCreationForm):
         return user
 
 
+class UserRoleUpdateForm(forms.Form):
+    role = forms.ChoiceField(
+        choices=(),
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        request_user = kwargs.pop('request_user', None)
+        target_user = kwargs.pop('target_user', None)
+        super().__init__(*args, **kwargs)
+
+        creator_role = getattr(request_user, 'role', None)
+        is_super = bool(getattr(request_user, 'is_superuser', False))
+
+        if is_super:
+            allowed = ['managing_director', 'manager', 'accountant', 'data_entry']
+        elif creator_role == 'managing_director':
+            allowed = ['manager', 'accountant', 'data_entry']
+        else:
+            allowed = []
+
+        role_map = dict(CustomUser.ROLE_CHOICES)
+        # Never allow selecting 'superuser' via this form (it is controlled by is_superuser).
+        allowed = [key for key in allowed if key != 'superuser']
+        self.fields['role'].choices = [(key, role_map[key]) for key in allowed if key in role_map]
+
+        if target_user is not None:
+            self.fields['role'].initial = getattr(target_user, 'role', None)
+
+    def clean_role(self):
+        role = self.cleaned_data.get('role')
+        allowed = {key for key, _ in self.fields['role'].choices}
+        if role not in allowed:
+            raise forms.ValidationError('You are not allowed to assign this role.')
+        return role
+
+
 class UserPermissionOverridesForm(forms.Form):
     manage_users = forms.BooleanField(
         required=False,

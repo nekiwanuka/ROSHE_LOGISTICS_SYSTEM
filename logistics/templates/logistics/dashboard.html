@@ -1,98 +1,158 @@
 {% extends "logistics/base.html" %}
+{% load static %}
 
 {% block title %}Dashboard - ROSHE LOGISTICS{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v={% now 'YmdHi' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <h1 class="mb-4">
-        <i class="bi bi-speedometer2"></i> Dashboard
-    </h1>
+<div class="container-fluid dashboard-page">
+    <div class="dashboard-hero mb-4">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <div class="dashboard-hero-kicker">Overview</div>
+                <h1 class="dashboard-hero-title mb-1">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </h1>
+                <div class="dashboard-hero-subtitle">Track clients, shipments, invoices, and approvals in one place.</div>
+            </div>
+            <div class="dashboard-hero-actions">
+                <a href="{% url 'client_create' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-person-plus"></i> New Client
+                </a>
+                <a href="{% url 'loading_create' %}" class="btn btn-warning btn-sm">
+                    <i class="bi bi-box-seam"></i> New Cargo
+                </a>
+                <a href="{% url 'quote_create' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-file-earmark-text"></i> New Quote
+                </a>
+            </div>
+        </div>
+    </div>
 
     <!-- Statistics Cards -->
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 row-cols-xxl-5 g-3 mb-4">
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body dashboard-stat">
-                    <h4><i class="bi bi-people"></i> Clients</h4>
-                    <p>{{ total_clients }}</p>
+            <div class="stat-card h-100">
+                <div class="stat-icon bg-soft-primary"><i class="bi bi-people"></i></div>
+                <div class="stat-meta">
+                    <div class="stat-label">Clients</div>
+                    <div class="stat-value">{{ total_clients }}</div>
+                    <div class="stat-note">Total registered</div>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body dashboard-stat">
-                    <h4><i class="bi bi-box"></i> Cargo</h4>
-                    <p>{{ total_loadings }}</p>
+            <div class="stat-card h-100">
+                <div class="stat-icon bg-soft-primary"><i class="bi bi-box-seam"></i></div>
+                <div class="stat-meta">
+                    <div class="stat-label">Cargo</div>
+                    <div class="stat-value">{{ total_loadings }}</div>
+                    <div class="stat-note">Loadings created</div>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body dashboard-stat">
-                    <h4><i class="bi bi-ship"></i> In Transit</h4>
-                    <p>{{ total_transits }}</p>
+            <div class="stat-card h-100">
+                <div class="stat-icon bg-soft-primary"><i class="bi bi-truck"></i></div>
+                <div class="stat-meta">
+                    <div class="stat-label">In Transit</div>
+                    <div class="stat-value">{{ total_transits }}</div>
+                    <div class="stat-note">Active shipments</div>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body dashboard-stat">
-                    <h4><i class="bi bi-exclamation-circle"></i> Outstanding</h4>
-                    <p>${{ outstanding_payments|floatformat:2 }}</p>
+            <div class="stat-card h-100">
+                <div class="stat-icon bg-soft-warning"><i class="bi bi-exclamation-circle"></i></div>
+                <div class="stat-meta">
+                    <div class="stat-label">Outstanding</div>
+                    <div class="stat-value">${{ outstanding_payments|floatformat:2 }}</div>
+                    <div class="stat-note">Pending balances</div>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body dashboard-stat">
-                    <h4><i class="bi bi-shield-check"></i> Pending Verifications</h4>
-                    <p>{{ pending_verifications }}</p>
+            <div class="stat-card h-100">
+                <div class="stat-icon bg-soft-warning"><i class="bi bi-shield-check"></i></div>
+                <div class="stat-meta">
+                    <div class="stat-label">Pending Verifications</div>
+                    <div class="stat-value">{{ pending_verifications }}</div>
+                    <div class="stat-note">Awaiting approval</div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Quick Links -->
-    <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+    <div class="section-head mb-2">
+        <h2 class="section-title"><i class="bi bi-lightning-charge"></i> Quick Actions</h2>
+        <div class="section-subtitle">Jump to the most-used screens.</div>
+    </div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-3 mb-4">
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Quotations</h5>
-                    <p class="card-text text-muted mb-3">Create and manage quotations for cargo.</p>
-                    <a href="{% url 'quote_list' %}" class="btn btn-primary btn-sm">View Quotations</a>
+            <div class="action-card h-100">
+                <div class="action-icon"><i class="bi bi-file-earmark-text"></i></div>
+                <div class="action-body">
+                    <h5 class="action-title">Quotations</h5>
+                    <p class="action-text">Create and manage quotations for cargo Convert to Invoices.</p>
+                    <a href="{% url 'quote_list' %}" class="btn btn-primary btn-sm">
+                        View Quotations <i class="bi bi-arrow-right"></i>
+                    </a>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-file-earmark-pdf"></i> Invoices</h5>
-                    <p class="card-text text-muted mb-3">View invoices and generate shipment invoices.</p>
-                    <a href="{% url 'payment_list' %}" class="btn btn-primary btn-sm">View Invoices</a>
+            <div class="action-card h-100">
+                <div class="action-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+                <div class="action-body">
+                    <h5 class="action-title">Invoices</h5>
+                    <p class="action-text">View invoices and generate shipment invoices.</p>
+                    <a href="{% url 'payment_list' %}" class="btn btn-primary btn-sm">
+                        View Invoices <i class="bi bi-arrow-right"></i>
+                    </a>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-receipt"></i> Receipts</h5>
-                    <p class="card-text text-muted mb-3">View receipts and download approved PDFs.</p>
-                    <a href="{% url 'receipt_list' %}" class="btn btn-primary btn-sm">View Receipts</a>
+            <div class="action-card h-100">
+                <div class="action-icon"><i class="bi bi-receipt"></i></div>
+                <div class="action-body">
+                    <h5 class="action-title">Receipts</h5>
+                    <p class="action-text">View receipts and download approved PDFs.</p>
+                    <a href="{% url 'receipt_list' %}" class="btn btn-primary btn-sm">
+                        View Receipts <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="action-card h-100">
+                <div class="action-icon"><i class="bi bi-truck"></i></div>
+                <div class="action-body">
+                    <h5 class="action-title">Transit</h5>
+                    <p class="action-text">Track cargo in transit and update shipment status.</p>
+                    <a href="{% url 'transit_list' %}" class="btn btn-primary btn-sm">
+                        View Transit <i class="bi bi-arrow-right"></i>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
+    <div class="row g-3">
         <!-- Recent Clients -->
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-people"></i> Recent Clients</h5>
+            <div class="card dashboard-panel dashboard-panel-sharp">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Recent Clients</h5>
+                    <a href="{% url 'client_list' %}" class="btn btn-sm btn-outline-light">All</a>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover">
+                        <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th>Client ID</th>
@@ -113,30 +173,31 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted">No clients yet</td>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        <div class="empty-state">
+                                            <i class="bi bi-people"></i>
+                                            <div>No clients yet</div>
+                                        </div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="card-footer">
-                    <a href="{% url 'client_list' %}" class="btn btn-sm btn-primary">
-                        View All Clients
-                    </a>
-                </div>
             </div>
         </div>
 
         <!-- Recent Loadings -->
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-box"></i> Recent Cargo</h5>
+            <div class="card dashboard-panel dashboard-panel-sharp">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-box"></i> Recent Cargo</h5>
+                    <a href="{% url 'loading_list' %}" class="btn btn-sm btn-outline-light">All</a>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover">
+                        <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th>Container</th>
@@ -157,17 +218,17 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted">No cargo yet</td>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        <div class="empty-state">
+                                            <i class="bi bi-box"></i>
+                                            <div>No cargo yet</div>
+                                        </div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                </div>
-                <div class="card-footer">
-                    <a href="{% url 'loading_list' %}" class="btn btn-sm btn-primary">
-                        View All Cargo
-                    </a>
                 </div>
             </div>
         </div>
@@ -176,13 +237,17 @@
     <!-- Pending Containers -->
     <div class="row mt-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-archive"></i> Pending Container Returns: <span class="badge bg-warning">{{ pending_containers }}</span></h5>
+            <div class="callout-card">
+                <div class="callout-left">
+                    <div class="callout-icon"><i class="bi bi-archive"></i></div>
+                    <div>
+                        <div class="callout-title">Pending Container Returns</div>
+                        <div class="callout-subtitle">Keep track of containers awaiting return.</div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <p class="text-muted">Keep track of containers awaiting return</p>
-                    <a href="{% url 'container_return_list' %}" class="btn btn-warning">
+                <div class="callout-right">
+                    <span class="badge bg-warning text-dark">{{ pending_containers }}</span>
+                    <a href="{% url 'container_return_list' %}" class="btn btn-warning btn-sm">
                         View Pending Returns
                     </a>
                 </div>

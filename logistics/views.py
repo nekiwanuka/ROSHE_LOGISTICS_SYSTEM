@@ -12,7 +12,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum, ProtectedError
+from django.db.models.deletion import PROTECT
 from django.conf import settings
 from django.http import Http404
 from django.http import HttpResponse
@@ -37,6 +39,7 @@ from .forms import (
     SendDocumentEmailForm,
     TransitForm,
     UserRegistrationForm,
+    UserRoleUpdateForm,
     UserPermissionOverridesForm,
 )
 from .models import (
@@ -58,6 +61,45 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_PAGE_SIZE = 20
+
+
+def _reassign_protected_user_references(*, from_user, to_user):
+    """Reassign PROTECT foreign keys pointing at a user.
+
+    This is used to support hard-deleting users while preserving historical records.
+    Only relations within the `logistics` app are touched.
+    """
+    if not from_user or not to_user or from_user.pk == to_user.pk:
+        return 0, []
+
+    reassigned_total = 0
+    touched = []
+
+    for rel in from_user._meta.related_objects:
+        field = getattr(rel, 'field', None)
+        if field is None:
+            continue
+
+        remote_field = getattr(field, 'remote_field', None)
+        if remote_field is None:
+            continue
+
+        on_delete = getattr(remote_field, 'on_delete', None)
+        related_model = getattr(rel, 'related_model', None)
+        if on_delete is not PROTECT or related_model is None:
+            continue
+
+        if getattr(getattr(related_model, '_meta', None), 'app_label', None) != 'logistics':
+            continue
+
+        field_name = field.name
+        qs = related_model._default_manager.filter(**{field_name: from_user})
+        updated = qs.update(**{field_name: to_user})
+        if updated:
+            reassigned_total += int(updated)
+            touched.append(f'{related_model.__name__}.{field_name}:{updated}')
+
+    return reassigned_total, touched
 AUDIT_PAGE_SIZE = 40
 
 
@@ -505,6 +547,155 @@ def user_permissions_update(request, pk):
             'current_overrides': target_user.permission_overrides or {},
         },
     )
+
+
+@login_required
+def user_role_update(request, pk):
+    """MD/superuser can update a user's role."""
+    if not _can_manage_users(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('dashboard')
+
+    is_privileged_editor = bool(getattr(request.user, 'is_superuser', False)) or getattr(
+        request.user, 'role', None
+    ) in {'superuser', 'managing_director'}
+    if not is_privileged_editor:
+        messages.error(request, 'Only the Managing Director can edit user roles.')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    if target_user.pk == request.user.pk:
+        messages.error(request, 'You cannot change your own role from here.')
+        return redirect('user_list')
+
+    if bool(getattr(target_user, 'is_superuser', False)):
+        # Role is derived from is_superuser in CustomUser.save().
+        messages.error(request, 'This account is a Django superuser. Its role is managed automatically.')
+        return redirect('user_list')
+
+    if request.method == 'POST':
+        form = UserRoleUpdateForm(request.POST, request_user=request.user, target_user=target_user)
+        if form.is_valid():
+            old_role = getattr(target_user, 'role', None)
+            new_role = form.cleaned_data['role']
+
+            if old_role == new_role:
+                messages.info(request, 'No changes were made.')
+                return redirect('user_list')
+
+            target_user.role = new_role
+
+            # Privileged account types have fixed permissions; clear overrides.
+            if new_role in {'superuser', 'managing_director'}:
+                target_user.permission_overrides = {}
+
+            target_user.save(update_fields=['role', 'permission_overrides'])
+            messages.success(request, f"Role updated for {target_user.username}.")
+            log_audit(
+                'user',
+                'role_update',
+                target_user.id,
+                f'{target_user.username}: {old_role} -> {new_role}',
+                request.user,
+            )
+            return redirect('user_list')
+    else:
+        form = UserRoleUpdateForm(request_user=request.user, target_user=target_user)
+
+    return render(
+        request,
+        'logistics/users/role.html',
+        {
+            'target_user': target_user,
+            'form': form,
+        },
+    )
+
+
+@login_required
+def user_delete(request, pk):
+    """Delete a user account (Django superusers only).
+
+    This intentionally allows deleting other superusers as requested, but:
+    - prevents deleting yourself
+    - prevents deleting the last remaining Django superuser
+    """
+    if not bool(getattr(request.user, 'is_superuser', False)):
+        messages.error(request, 'Permission denied')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    if target_user.pk == request.user.pk:
+        messages.error(request, 'You cannot delete your own account.')
+        return redirect('user_list')
+
+    if request.method != 'POST':
+        return redirect('user_list')
+
+    if bool(getattr(target_user, 'is_superuser', False)):
+        remaining_superusers = CustomUser.objects.filter(is_superuser=True).exclude(pk=target_user.pk).count()
+        if remaining_superusers <= 0:
+            messages.error(request, 'Cannot delete the last remaining superuser.')
+            return redirect('user_list')
+
+    username = target_user.username
+    try:
+        with transaction.atomic():
+            reassigned_total, touched = _reassign_protected_user_references(
+                from_user=target_user,
+                to_user=request.user,
+            )
+
+            try:
+                target_user.delete()
+            except ProtectedError:
+                # Still blocked (e.g., non-logistics relations). Fall back to deactivation.
+                if hasattr(target_user, 'is_active'):
+                    if target_user.is_active:
+                        target_user.is_active = False
+                        target_user.save(update_fields=['is_active'])
+                        messages.warning(
+                            request,
+                            f'User {username} cannot be fully deleted because they are referenced by existing records. '
+                            'Their records were reassigned where possible and the account was deactivated.',
+                        )
+                        log_audit('user', 'deactivate', pk, username, request.user)
+                    else:
+                        messages.warning(
+                            request,
+                            f'User {username} cannot be fully deleted because they are referenced by existing records. '
+                            'Their records were reassigned where possible and the account is already deactivated.',
+                        )
+                else:
+                    messages.error(
+                        request,
+                        f'User {username} cannot be deleted because they are referenced by existing records.',
+                    )
+                return redirect('user_list')
+
+    except IntegrityError:
+        messages.error(
+            request,
+            'Unable to reassign this user\'s records due to a data integrity constraint. '
+            'No changes were applied.',
+        )
+        return redirect('user_list')
+
+    if reassigned_total:
+        messages.info(request, f'Reassigned {reassigned_total} record(s) to {request.user.username}.')
+        log_audit(
+            'user',
+            'reassign',
+            pk,
+            f'{username} -> {request.user.username} ({reassigned_total})',
+            request.user,
+        )
+
+    messages.success(request, f'User {username} deleted successfully.')
+    log_audit('user', 'delete', pk, username, request.user)
+    return redirect('user_list')
 
 
 # ===== CLIENT MANAGEMENT =====
@@ -1895,16 +2086,43 @@ def quote_convert_to_invoice(request, quote_id):
 
     loading = quote.loading
     if loading is None:
+        missing = []
+        if not quote.loading_date:
+            missing.append('Loading date')
+        if not (quote.origin or '').strip():
+            missing.append('Origin')
+        if not (quote.destination or '').strip():
+            missing.append('Destination')
+
+        container_number = quote.container_number
+        if not (container_number or '').strip():
+            if quote.flow_type == 'lcl':
+                container_number = f'LCL-{quote.pk:05d}'
+            else:
+                missing.append('Container number')
+
+        if missing:
+            messages.error(
+                request,
+                'Cannot convert to invoice. Please fill: ' + ', '.join(missing) + '.',
+            )
+            return redirect('quote_detail', quote_id=quote_id)
+
+        container_size = quote.container_size
+        if container_size is None:
+            # Loading.container_size is NOT NULL in DB; use blank string or LCL size.
+            container_size = 'lcl' if quote.flow_type == 'lcl' else ''
+
         loading = Loading.objects.create(
             flow_type=quote.flow_type,
             client=quote.client,
             loading_date=quote.loading_date,
             item_description=quote.item_description,
             weight=quote.cbm,
-            container_number=quote.container_number,
-            container_size=quote.container_size,
-            origin=quote.origin,
-            destination=quote.destination,
+            container_number=container_number,
+            container_size=container_size,
+            origin=(quote.origin or '').strip(),
+            destination=(quote.destination or '').strip(),
             created_by=request.user,
         )
         quote.loading = loading

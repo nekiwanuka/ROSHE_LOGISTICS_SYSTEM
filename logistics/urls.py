@@ -17,6 +17,8 @@ urlpatterns = [
     # Users
     path('users/', views.user_list, name='user_list'),
     path('users/<int:pk>/permissions/', views.user_permissions_update, name='user_permissions_update'),
+    path('users/<int:pk>/role/', views.user_role_update, name='user_role_update'),
+    path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
     
     # Clients
     path('clients/', views.client_list, name='client_list'),

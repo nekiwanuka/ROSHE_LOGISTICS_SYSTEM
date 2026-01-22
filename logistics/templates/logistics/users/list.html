@@ -45,17 +45,36 @@
                         </td>
                         <td>{{ user.created_at|date:"Y-m-d" }}</td>
                         <td>
-                            {% if request.user.is_superuser or request.user.role == 'managing_director' %}
-                                {% if user.role != 'superuser' and user.role != 'managing_director' and not user.is_superuser %}
-                                <a href="{% url 'user_permissions_update' user.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-sliders"></i> Permissions
+                            <div class="d-flex gap-2 flex-nowrap align-items-center">
+                                {% if request.user.is_superuser or request.user.role == 'managing_director' %}
+                                {% if user.id != request.user.id and not user.is_superuser %}
+                                <a href="{% url 'user_role_update' user.id %}" class="btn btn-sm btn-outline-secondary" title="Edit role">
+                                    <i class="bi bi-person-badge"></i> Role
                                 </a>
-                                {% else %}
-                                <span class="text-muted small">—</span>
                                 {% endif %}
-                            {% else %}
-                                <span class="text-muted small">—</span>
-                            {% endif %}
+                                {% endif %}
+
+                                {% if request.user.is_superuser or request.user.role == 'managing_director' %}
+                                    {% if user.role != 'superuser' and user.role != 'managing_director' and not user.is_superuser %}
+                                    <a href="{% url 'user_permissions_update' user.id %}" class="btn btn-sm btn-outline-primary" title="Permissions">
+                                        <i class="bi bi-sliders"></i> Permissions
+                                    </a>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if request.user.is_superuser and user.id != request.user.id %}
+                                <form method="post" action="{% url 'user_delete' user.id %}" onsubmit="return confirm('Delete this user? Their created records will be reassigned to your account. This cannot be undone.');" class="m-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete user">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                {% if not request.user.is_superuser and request.user.role != 'managing_director' %}
+                                    <span class="text-muted small">—</span>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
