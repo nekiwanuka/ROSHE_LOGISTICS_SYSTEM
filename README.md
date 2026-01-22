@@ -47,6 +47,11 @@ Login security (OTP for every login):
 
 Note: OTP is required for all users at login; if email isn’t configured, users won’t be able to complete login.
 
+SMTP troubleshooting (cPanel):
+
+- If you see `OSError: [Errno 99] Cannot assign requested address` while sending mail, your host may have broken IPv6.
+- Set `EMAIL_PREFER_IPV4=True` to force SMTP connections to use IPv4 first.
+
 ### 4) Install requirements
 In the cPanel Python App UI (or via SSH/terminal):
 

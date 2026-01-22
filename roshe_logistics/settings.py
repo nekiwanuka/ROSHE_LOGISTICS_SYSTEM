@@ -432,3 +432,20 @@ EMAIL_BACKEND = config(
         else 'django.core.mail.backends.console.EmailBackend'
     ),
 )
+
+# Some hosting environments have broken IPv6 egress and can raise
+# OSError: [Errno 99] Cannot assign requested address when smtplib
+# attempts an IPv6 connection first. Enable this to prefer IPv4.
+EMAIL_PREFER_IPV4 = config('EMAIL_PREFER_IPV4', default=False, cast=bool)
+if EMAIL_PREFER_IPV4:
+    import socket
+
+    _orig_getaddrinfo = socket.getaddrinfo
+
+    def _ipv4_first_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        results = _orig_getaddrinfo(host, port, family, type, proto, flags)
+        ipv4 = [r for r in results if r and r[0] == socket.AF_INET]
+        ipv6 = [r for r in results if r and r[0] == socket.AF_INET6]
+        return ipv4 + ipv6
+
+    socket.getaddrinfo = _ipv4_first_getaddrinfo
