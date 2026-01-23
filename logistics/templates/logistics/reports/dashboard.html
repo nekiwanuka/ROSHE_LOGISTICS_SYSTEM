@@ -1,43 +1,67 @@
 {% extends "logistics/base.html" %}
 
+{% load static %}
+
+{% load humanize %}
+
 {% block title %}Reports - ROSHE LOGISTICS{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v={% now 'YmdHi' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <h1 class="mb-4"><i class="bi bi-file-earmark-pdf"></i> Reports & Analytics</h1>
+<div class="container-fluid reports-page">
+    <div class="reports-hero mb-4">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <div class="reports-hero-kicker">Reports</div>
+                <h1 class="reports-hero-title mb-1"><i class="bi bi-graph-up"></i> Reports & Analytics</h1>
+                <div class="reports-hero-subtitle">Export CSV/PDF and review operational & financial totals.</div>
+            </div>
+            <div class="reports-hero-actions">
+                <a href="{% url 'audit_logs' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-journal-text"></i> Audit Logs
+                </a>
+                <a href="{% url 'payment_list' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-file-earmark-pdf"></i> Invoices
+                </a>
+            </div>
+        </div>
+    </div>
 
     <!-- Summary Statistics -->
-    <div class="row mb-4">
-        <div class="col-md-3">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-5 g-2 g-lg-3 mb-4">
+        <div class="col">
             <div class="card">
-                <div class="card-body dashboard-stat">
+                <div class="card-body dashboard-stat report-stat">
                     <h4>Clients</h4>
                     <p>{{ total_clients }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <div class="card">
-                <div class="card-body dashboard-stat">
+                <div class="card-body dashboard-stat report-stat">
                     <h4>Shipments</h4>
                     <p>{{ total_loadings }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <div class="card">
-                <div class="card-body dashboard-stat">
+                <div class="card-body dashboard-stat report-stat">
                     <h4>In Transit</h4>
                     <p>{{ in_transit_count }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <div class="card">
-                <div class="card-body dashboard-stat">
+                <div class="card-body dashboard-stat report-stat">
                     {% if can_view_financial_totals %}
-                    <h4>Revenue</h4>
-                    <p>${{ total_revenue|floatformat:0 }}</p>
+                    <h4>Income (Approved)</h4>
+                    <p>${{ income_revenue|floatformat:2|intcomma }}</p>
                     {% else %}
                     <h4><i class="bi bi-shield-lock"></i> Restricted</h4>
                     <p class="fs-6 text-muted mb-0">Only supervisors can view financial data</p>
@@ -45,20 +69,46 @@
                 </div>
             </div>
         </div>
+
+        {% if can_view_financial_totals %}
+        <div class="col">
+            <div class="card">
+                <div class="card-body dashboard-stat report-stat report-stat-danger">
+                    <h4>Outstanding</h4>
+                    <p>${{ outstanding_balance|floatformat:2|intcomma }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Financial Summary -->
-    <div class="row mb-4">
-        <div class="col-md-4">
+    <!-- Financial Summary + Exports -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
                     <h5>Financial Summary</h5>
                 </div>
                 <div class="card-body">
                     {% if can_view_financial_totals %}
-                    <p><strong>Total Charged:</strong> ${{ total_revenue|floatformat:2 }}</p>
-                    <p><strong>Total Paid:</strong> ${{ total_paid|floatformat:2 }}</p>
-                    <p><strong style="color: #dc3545;">Outstanding Balance:</strong> ${{ outstanding_balance|floatformat:2 }}</p>
+                    <div class="reports-kv">
+                        <div class="reports-kv-row">
+                            <div class="reports-kv-key">Total Invoiced (Charged)</div>
+                            <div class="reports-kv-val">${{ total_revenue|floatformat:2|intcomma }}</div>
+                        </div>
+                        <div class="reports-kv-row">
+                            <div class="reports-kv-key">Income Received (Approved)</div>
+                            <div class="reports-kv-val">${{ income_revenue|floatformat:2|intcomma }}</div>
+                        </div>
+                        <div class="reports-kv-row">
+                            <div class="reports-kv-key">Total Paid (Invoice Totals)</div>
+                            <div class="reports-kv-val">${{ total_paid|floatformat:2|intcomma }}</div>
+                        </div>
+                        <div class="reports-kv-row reports-kv-row-danger">
+                            <div class="reports-kv-key">Outstanding Balance</div>
+                            <div class="reports-kv-val">${{ outstanding_balance|floatformat:2|intcomma }}</div>
+                        </div>
+                    </div>
                     {% else %}
                     <div class="alert alert-info mb-0" role="alert">
                         Financial metrics are hidden for your role. Please contact your supervisor if you require access.
@@ -68,157 +118,92 @@
             </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="col-md-8">
+        <div class="col-lg-8">
             <div class="card">
                 <div class="card-header">
                     <h5>Export Reports</h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">Download structured data as CSV or PDF</p>
-                    <div class="d-flex flex-wrap gap-2">
-                        <div class="btn-group" role="group">
-                            <a href="{% url 'export_clients_csv' %}" class="btn btn-outline-primary">
-                                <i class="bi bi-download"></i> Clients CSV
-                            </a>
-                            <a href="{% url 'export_clients_pdf' %}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
+                    <p class="text-muted mb-3">Download structured data as CSV or PDF.</p>
+                    <div class="row row-cols-1 row-cols-md-2 g-2">
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-people"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Clients</div>
+                                    <div class="export-tile-sub">Contacts and basic details</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_clients_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_clients_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
                         </div>
-                        <div class="btn-group" role="group">
-                            <a href="{% url 'export_shipments_csv' %}" class="btn btn-outline-primary">
-                                <i class="bi bi-download"></i> Shipments CSV
-                            </a>
-                            <a href="{% url 'export_shipments_pdf' %}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-box"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Shipments</div>
+                                    <div class="export-tile-sub">Routes, containers, and status</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_shipments_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_shipments_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
                         </div>
-                        <div class="btn-group" role="group">
-                            <a href="{% url 'export_payments_csv' %}" class="btn btn-outline-primary">
-                                <i class="bi bi-download"></i> Payments CSV
-                            </a>
-                            <a href="{% url 'export_payments_pdf' %}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-receipt"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Invoices</div>
+                                    <div class="export-tile-sub">Invoice totals, balances, and history</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_payments_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_payments_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
                         </div>
-                        <div class="btn-group" role="group">
-                            <a href="{% url 'export_containers_csv' %}" class="btn btn-outline-primary">
-                                <i class="bi bi-download"></i> Containers CSV
-                            </a>
-                            <a href="{% url 'export_containers_pdf' %}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-archive"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Container Returns</div>
+                                    <div class="export-tile-sub">Return status and condition</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_containers_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_containers_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
                         </div>
-                        <div class="btn-group" role="group">
-                            <a href="{% url 'export_quotes_csv' %}" class="btn btn-outline-primary">
-                                <i class="bi bi-download"></i> Quotations CSV
-                            </a>
-                            <a href="{% url 'export_quotes_pdf' %}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-receipt"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Receipts</div>
+                                    <div class="export-tile-sub">Receipt transactions and approvals</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_receipts_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_receipts_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Available Reports -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-people"></i> Client Report</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">List of all registered clients with contact information</p>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'export_clients_csv' %}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> CSV
-                        </a>
-                        <a href="{% url 'export_clients_pdf' %}" class="btn btn-danger">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-box"></i> Shipment Report</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Complete shipment details including routes and containers</p>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'export_shipments_csv' %}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> CSV
-                        </a>
-                        <a href="{% url 'export_shipments_pdf' %}" class="btn btn-danger">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-cash-coin"></i> Payment Report</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Payment status and transaction history</p>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'export_payments_csv' %}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> CSV
-                        </a>
-                        <a href="{% url 'export_payments_pdf' %}" class="btn btn-danger">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-archive"></i> Container Return Report</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Container return status and conditions</p>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'export_containers_csv' %}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> CSV
-                        </a>
-                        <a href="{% url 'export_containers_pdf' %}" class="btn btn-danger">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-file-earmark-text"></i> Quotation Report</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">All quotations with status, rates, and totals</p>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'export_quotes_csv' %}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> CSV
-                        </a>
-                        <a href="{% url 'export_quotes_pdf' %}" class="btn btn-danger">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                        </a>
+                        <div class="col">
+                            <div class="export-tile">
+                                <div class="export-tile-icon"><i class="bi bi-file-earmark-text"></i></div>
+                                <div class="export-tile-body">
+                                    <div class="export-tile-title">Quotations</div>
+                                    <div class="export-tile-sub">Totals, rates, and statuses</div>
+                                </div>
+                                <div class="export-tile-actions">
+                                    <a href="{% url 'export_quotes_csv' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> CSV</a>
+                                    <a href="{% url 'export_quotes_pdf' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

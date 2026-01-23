@@ -1,0 +1,185 @@
+/* Reports-only styling */
+
+.reports-page {
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.reports-hero {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 4px solid var(--secondary-color);
+  padding: 16px 18px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+}
+
+.reports-hero-kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(0, 51, 102, 0.70);
+  margin-bottom: 6px;
+}
+
+.reports-hero-title {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--primary-color);
+}
+
+.reports-hero-title i {
+  color: var(--primary-color);
+  margin-right: 6px;
+}
+
+.reports-hero-subtitle {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.reports-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reports-page .report-stat {
+  padding: 14px 14px;
+  text-align: center;
+}
+
+.reports-page .report-stat h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--primary-color);
+}
+
+.reports-page .report-stat p {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--secondary-color);
+  line-height: 1.1;
+}
+
+.reports-page .report-stat .small {
+  margin-top: 4px;
+  line-height: 1.2;
+}
+
+.reports-page .report-stat.report-stat-danger h4 {
+  color: #dc3545;
+}
+
+.reports-page .report-stat.report-stat-danger p {
+  color: #dc3545;
+}
+
+@media (min-width: 992px) {
+  .reports-page .report-stat {
+    padding: 12px 10px;
+  }
+
+  .reports-page .report-stat p {
+    font-size: 1.45rem;
+  }
+}
+
+/* Financial summary key/value */
+.reports-kv {
+  display: grid;
+  gap: 10px;
+}
+
+.reports-kv-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.10);
+}
+
+.reports-kv-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.reports-kv-key {
+  color: rgba(0, 0, 0, 0.62);
+  font-size: 0.92rem;
+}
+
+.reports-kv-val {
+  font-weight: 900;
+  color: var(--primary-color);
+}
+
+.reports-kv-row-danger .reports-kv-key,
+.reports-kv-row-danger .reports-kv-val {
+  color: #dc3545;
+}
+
+/* Export tiles */
+.export-tile {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-tile-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(0, 51, 102, 0.10);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.export-tile-icon i {
+  font-size: 18px;
+  color: var(--primary-color);
+}
+
+.export-tile-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.export-tile-title {
+  font-weight: 900;
+  color: var(--primary-color);
+  line-height: 1.2;
+}
+
+.export-tile-sub {
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.export-tile-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 575.98px) {
+  .export-tile {
+    align-items: flex-start;
+  }
+
+  .export-tile-actions {
+    flex-direction: column;
+  }
+}

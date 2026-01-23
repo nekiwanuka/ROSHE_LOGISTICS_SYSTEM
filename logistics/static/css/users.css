@@ -1,0 +1,67 @@
+/* Users page styling (scoped via .users-page) */
+
+.users-page {
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.users-hero {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 4px solid var(--secondary-color);
+  padding: 16px 18px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+}
+
+.users-hero-kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(0, 51, 102, 0.70);
+  margin-bottom: 6px;
+}
+
+.users-hero-title {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--primary-color);
+}
+
+.users-hero-title i {
+  margin-right: 6px;
+  color: var(--primary-color);
+}
+
+.users-hero-subtitle {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.users-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.user-role-badge {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.users-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.users-actions .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .users-actions .btn span {
+    display: none;
+  }
+}

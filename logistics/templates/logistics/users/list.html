@@ -1,14 +1,70 @@
 {% extends "logistics/base.html" %}
 
+{% load static %}
+
 {% block title %}Users - ROSHE LOGISTICS{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/users.css' %}?v={% now 'YmdHi' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-shield-lock"></i> User Management</h1>
-        <a href="{% url 'register' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add New User
-        </a>
+<div class="container-fluid users-page">
+    <div class="users-hero mb-4">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <div class="users-hero-kicker">Users</div>
+                <h1 class="users-hero-title mb-1"><i class="bi bi-shield-lock"></i> User Management</h1>
+                <div class="users-hero-subtitle">Manage accounts, roles, and permissions.</div>
+            </div>
+            <div class="users-hero-actions">
+                <a href="{% url 'register' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-circle"></i> Add User
+                </a>
+            </div>
+        </div>
+
+        <form method="get" class="mt-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-6 col-lg-5">
+                    <label class="form-label mb-1">Search</label>
+                    <input
+                        type="text"
+                        name="search"
+                        value="{{ search|default:'' }}"
+                        class="form-control"
+                        placeholder="Username, email, name, phone"
+                    />
+                </div>
+                <div class="col-6 col-md-3 col-lg-3">
+                    <label class="form-label mb-1">Role</label>
+                    <select name="role" class="form-select">
+                        <option value="" {% if not role_filter %}selected{% endif %}>All roles</option>
+                        <option value="superuser" {% if role_filter == 'superuser' %}selected{% endif %}>Superuser (Admin)</option>
+                        <option value="managing_director" {% if role_filter == 'managing_director' %}selected{% endif %}>Managing Director</option>
+                        <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>Manager</option>
+                        <option value="accountant" {% if role_filter == 'accountant' %}selected{% endif %}>Accountant</option>
+                        <option value="data_entry" {% if role_filter == 'data_entry' %}selected{% endif %}>Front Desk Operator</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="" {% if not status_filter %}selected{% endif %}>All</option>
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                    <a href="{% url 'user_list' %}" class="btn btn-outline-secondary w-100" title="Clear">
+                        <i class="bi bi-x-circle"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
     </div>
 
     <div class="card">
@@ -33,7 +89,7 @@
                         <td>{{ user.email }}</td>
                         <td>{{ user.get_full_name }}</td>
                         <td>
-                            <span class="badge bg-info">{{ user.get_role_display }}</span>
+                            <span class="badge bg-info user-role-badge">{{ user.get_role_display }}</span>
                         </td>
                         <td>{{ user.phone }}</td>
                         <td>
@@ -45,11 +101,11 @@
                         </td>
                         <td>{{ user.created_at|date:"Y-m-d" }}</td>
                         <td>
-                            <div class="d-flex gap-2 flex-nowrap align-items-center">
+                            <div class="users-actions">
                                 {% if request.user.is_superuser or request.user.role == 'managing_director' %}
                                 {% if user.id != request.user.id and not user.is_superuser %}
                                 <a href="{% url 'user_role_update' user.id %}" class="btn btn-sm btn-outline-secondary" title="Edit role">
-                                    <i class="bi bi-person-badge"></i> Role
+                                    <i class="bi bi-person-badge"></i> <span>Role</span>
                                 </a>
                                 {% endif %}
                                 {% endif %}
@@ -57,7 +113,7 @@
                                 {% if request.user.is_superuser or request.user.role == 'managing_director' %}
                                     {% if user.role != 'superuser' and user.role != 'managing_director' and not user.is_superuser %}
                                     <a href="{% url 'user_permissions_update' user.id %}" class="btn btn-sm btn-outline-primary" title="Permissions">
-                                        <i class="bi bi-sliders"></i> Permissions
+                                        <i class="bi bi-sliders"></i> <span>Permissions</span>
                                     </a>
                                     {% endif %}
                                 {% endif %}
@@ -66,7 +122,7 @@
                                 <form method="post" action="{% url 'user_delete' user.id %}" onsubmit="return confirm('Delete this user? Their created records will be reassigned to your account. This cannot be undone.');" class="m-0">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-danger" title="Delete user">
-                                        <i class="bi bi-trash"></i> Delete
+                                        <i class="bi bi-trash"></i> <span>Delete</span>
                                     </button>
                                 </form>
                                 {% endif %}

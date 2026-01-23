@@ -449,15 +449,40 @@ def user_list(request):
     if not _can_manage_users(request.user):
         messages.error(request, 'Permission denied')
         return redirect('dashboard')
-    users = CustomUser.objects.all()
+
+    users = CustomUser.objects.all().order_by('-created_at', '-id')
+
+    search = (request.GET.get('search') or '').strip()
+    role_filter = (request.GET.get('role') or '').strip()
+    status_filter = (request.GET.get('status') or '').strip()
+
     if getattr(request.user, 'role', None) == 'manager' and not getattr(request.user, 'is_superuser', False):
         users = users.filter(role__in={'accountant', 'data_entry'})
+
+    if search:
+        users = users.filter(
+            Q(username__icontains=search)
+            | Q(email__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(phone__icontains=search)
+        )
+
+    if role_filter:
+        users = users.filter(role=role_filter)
+
+    if status_filter in {'active', 'inactive'}:
+        users = users.filter(is_active=(status_filter == 'active'))
+
     page_obj, query_string, page_range = paginate_queryset(request, users)
     return render(
         request,
         'logistics/users/list.html',
         {
             'users': page_obj,
+            'search': search,
+            'role_filter': role_filter,
+            'status_filter': status_filter,
             'page_obj': page_obj,
             'query_string': query_string,
             'page_range': page_range,
@@ -2489,7 +2514,15 @@ def reports_dashboard(request):
     if denied:
         return denied
     totals = {
+        # "Revenue" here means what was invoiced/charged.
         'total_revenue': Payment.objects.aggregate(Sum('amount_charged'))['amount_charged__sum'] or 0,
+        # "Income" means money actually received (approved, non-voided receipts).
+        'income_revenue': PaymentTransaction.objects.filter(
+            verification_status='approved',
+            is_voided=False,
+        ).aggregate(Sum('amount'))['amount__sum']
+        or 0,
+        # Kept for backward compatibility; amount_paid is derived from approved receipts.
         'total_paid': Payment.objects.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0,
         'outstanding_balance': Payment.objects.filter(balance__gt=0).aggregate(Sum('balance'))['balance__sum']
         or 0,
@@ -2726,6 +2759,118 @@ def export_payments_pdf(request):
     report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     response = _pdf_report_response(f'payments_report_{report_date}.pdf', 'Payments Report', headers, rows)
     log_audit('payment', 'export', 0, 'PDF Export', request.user)
+    return response
+
+
+@login_required
+def export_receipts_csv(request):
+    denied = _deny_if_data_entry_reports(request)
+    if denied:
+        return denied
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="receipts_report_{report_date}.csv"'
+    response.write('\ufeff')
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            'Receipt Number',
+            'Verification Status',
+            'Is Voided',
+            'Amount',
+            'Payment Date',
+            'Payment Method',
+            'Reference',
+            'Invoice Number',
+            'Container Number',
+            'Flow Type',
+            'Client',
+            'Created By',
+            'Verified By',
+            'Verified At',
+            'Voided By',
+            'Voided At',
+            'Void Reason',
+        ]
+    )
+
+    receipts = (
+        PaymentTransaction.objects.select_related(
+            'payment__loading__client',
+            'created_by',
+            'verified_by',
+            'voided_by',
+        )
+        .order_by('-payment_date', '-id')
+    )
+    for receipt in receipts:
+        loading = receipt.payment.loading
+        writer.writerow(
+            [
+                receipt.receipt_number,
+                receipt.get_verification_status_display(),
+                'Yes' if receipt.is_voided else 'No',
+                _fmt_number(receipt.amount, decimals=2),
+                _fmt_dt(receipt.payment_date),
+                receipt.get_payment_method_display() if receipt.payment_method else '',
+                receipt.reference or '',
+                receipt.payment.invoice_number,
+                loading.container_number,
+                loading.get_flow_type_display(),
+                loading.client.name,
+                str(receipt.created_by) if receipt.created_by else '',
+                str(receipt.verified_by) if receipt.verified_by else '',
+                _fmt_dt(receipt.verified_at),
+                str(receipt.voided_by) if receipt.voided_by else '',
+                _fmt_dt(receipt.voided_at),
+                receipt.void_reason or '',
+            ]
+        )
+
+    log_audit('receipt', 'export', 0, 'CSV Export', request.user)
+    return response
+
+
+@login_required
+def export_receipts_pdf(request):
+    denied = _deny_if_data_entry_reports(request)
+    if denied:
+        return denied
+    headers = [
+        'Receipt Number',
+        'Status',
+        'Voided',
+        'Amount',
+        'Payment Date',
+        'Method',
+        'Invoice',
+        'Container',
+        'Client',
+    ]
+    rows = []
+    receipts = (
+        PaymentTransaction.objects.select_related('payment__loading__client')
+        .order_by('-payment_date', '-id')
+    )
+    for receipt in receipts:
+        loading = receipt.payment.loading
+        rows.append(
+            [
+                receipt.receipt_number,
+                receipt.get_verification_status_display(),
+                'Yes' if receipt.is_voided else 'No',
+                f"${receipt.amount:,.2f}",
+                receipt.payment_date.strftime('%Y-%m-%d %H:%M') if receipt.payment_date else '',
+                receipt.get_payment_method_display() if receipt.payment_method else '',
+                receipt.payment.invoice_number,
+                loading.container_number,
+                loading.client.name,
+            ]
+        )
+
+    report_date = timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
+    response = _pdf_report_response(f'receipts_report_{report_date}.pdf', 'Receipts Report', headers, rows)
+    log_audit('receipt', 'export', 0, 'PDF Export', request.user)
     return response
 
 
