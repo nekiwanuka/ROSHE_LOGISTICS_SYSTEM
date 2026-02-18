@@ -242,7 +242,7 @@ class UserRoleUpdateForm(forms.Form):
         if is_super:
             allowed = ['managing_director', 'manager', 'accountant', 'data_entry']
         elif creator_role == 'managing_director':
-            allowed = ['manager', 'accountant', 'data_entry']
+            allowed = ['managing_director', 'manager', 'accountant', 'data_entry']
         else:
             allowed = []
 
@@ -260,6 +260,22 @@ class UserRoleUpdateForm(forms.Form):
         if role not in allowed:
             raise forms.ValidationError('You are not allowed to assign this role.')
         return role
+
+
+class UserDetailsUpdateForm(forms.ModelForm):
+    """Edit core user profile fields (not role/permissions)."""
+
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'email', 'first_name', 'last_name', 'phone', 'is_active']
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
 
 
 class UserPermissionOverridesForm(forms.Form):

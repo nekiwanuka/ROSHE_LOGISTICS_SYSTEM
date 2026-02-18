@@ -98,8 +98,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'logistics.middleware.AbsoluteSessionExpiryMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'logistics.middleware.AbsoluteSessionExpiryMiddleware',
     'logistics.middleware.BlockAdminForManagingDirectorMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -448,3 +448,14 @@ if EMAIL_PREFER_IPV4:
         return ipv4 + ipv6
 
     socket.getaddrinfo = _ipv4_first_getaddrinfo
+
+# WhatsApp integration
+# Modes:
+# - link: opens wa.me links in browser (default)
+# - api: sends PDFs through WhatsApp Business Cloud API
+WHATSAPP_MODE = config('WHATSAPP_MODE', default='link').strip().lower() or 'link'
+WHATSAPP_API_BASE_URL = config('WHATSAPP_API_BASE_URL', default='').strip()
+WHATSAPP_API_VERSION = config('WHATSAPP_API_VERSION', default='v21.0').strip() or 'v21.0'
+WHATSAPP_API_TOKEN = config('WHATSAPP_API_TOKEN', default='').strip()
+WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='').strip()
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = config('WHATSAPP_WEBHOOK_VERIFY_TOKEN', default='').strip()

@@ -69,6 +69,17 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.dashboard-hero-search {
+  flex: 1 1 560px;
+  min-width: 320px;
+  max-width: 760px;
+}
+
+.dashboard-hero-search .form-control {
+  min-width: 280px;
 }
 
 /* keep buttons default bootstrap styling */

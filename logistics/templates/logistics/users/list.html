@@ -103,6 +103,15 @@
                         <td>
                             <div class="users-actions">
                                 {% if request.user.is_superuser or request.user.role == 'managing_director' %}
+                                {% if request.user.is_superuser or not user.is_superuser %}
+                                <a href="{% url 'user_update_details' user.id %}" class="btn btn-sm btn-outline-dark" title="Edit details">
+                                    <i class="bi bi-person-lines-fill"></i> <span>Edit</span>
+                                </a>
+                                <a href="{% url 'user_change_password' user.id %}" class="btn btn-sm btn-outline-warning" title="Change password">
+                                    <i class="bi bi-key"></i> <span>Password</span>
+                                </a>
+                                {% endif %}
+
                                 {% if user.id != request.user.id and not user.is_superuser %}
                                 <a href="{% url 'user_role_update' user.id %}" class="btn btn-sm btn-outline-secondary" title="Edit role">
                                     <i class="bi bi-person-badge"></i> <span>Role</span>
@@ -111,7 +120,7 @@
                                 {% endif %}
 
                                 {% if request.user.is_superuser or request.user.role == 'managing_director' %}
-                                    {% if user.role != 'superuser' and user.role != 'managing_director' and not user.is_superuser %}
+                                    {% if request.user.is_superuser or not user.is_superuser %}
                                     <a href="{% url 'user_permissions_update' user.id %}" class="btn btn-sm btn-outline-primary" title="Permissions">
                                         <i class="bi bi-sliders"></i> <span>Permissions</span>
                                     </a>
@@ -125,6 +134,19 @@
                                         <i class="bi bi-trash"></i> <span>Delete</span>
                                     </button>
                                 </form>
+                                {% endif %}
+
+                                {% if request.user.is_superuser or request.user.role == 'managing_director' %}
+                                    {% if user.id != request.user.id %}
+                                        {% if request.user.is_superuser or not user.is_superuser %}
+                                        <form method="post" action="{% url 'user_login_as' user.id %}" onsubmit="return confirm('Sign in as this user now?');" class="m-0">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-dark" title="Login as user">
+                                                <i class="bi bi-box-arrow-in-right"></i> <span>Login As</span>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
                                 {% endif %}
 
                                 {% if not request.user.is_superuser and request.user.role != 'managing_director' %}

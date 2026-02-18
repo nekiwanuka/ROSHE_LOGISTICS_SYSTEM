@@ -19,6 +19,19 @@
                 <div class="dashboard-hero-subtitle">Track clients, shipments, invoices, and approvals in one place.</div>
             </div>
             <div class="dashboard-hero-actions">
+                <form method="get" action="{% url 'global_search' %}" class="dashboard-hero-search">
+                    <div class="input-group input-group-sm">
+                        <input
+                            type="text"
+                            name="q"
+                            class="form-control"
+                            placeholder="Search clients, cargo, transit, invoices, receipts, quotations, returns, users"
+                        >
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </form>
                 <a href="{% url 'client_create' %}" class="btn btn-primary btn-sm">
                     <i class="bi bi-person-plus"></i> New Client
                 </a>

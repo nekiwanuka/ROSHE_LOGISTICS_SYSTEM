@@ -23,17 +23,15 @@
             <a href="{% url 'payment_invoice_email' payment.pk %}" class="btn btn-outline-secondary">
                 <i class="bi bi-envelope"></i> Email (Attachment)
             </a>
-            {% with wa_text='ROSHE LOGISTICS - Shipment Invoice '|add:payment.invoice_number|add:' - '|add:invoice_full_url %}
             <a
-                href="https://wa.me/256773183916?text={{ wa_text|urlencode }}"
+                href="{% url 'payment_invoice_whatsapp' payment.pk %}"
                 class="btn btn-outline-secondary"
                 target="_blank"
                 rel="noopener"
-                title="WhatsApp: opens message (attach PDF manually if needed)"
+                title="WhatsApp: opens message to client phone"
             >
                 <i class="bi bi-whatsapp"></i> WhatsApp
             </a>
-            {% endwith %}
             {% endwith %}
             {% endwith %}
             {% if payment.transactions.exists %}
@@ -41,10 +39,31 @@
                 Total Payments: {{ payment.transactions.count }}
             </button>
             {% endif %}
+            {% if can_delete_invoice %}
+            <form method="post" action="{% url 'payment_delete' payment.pk %}" class="d-inline" onsubmit="return confirm('Delete this invoice and all its receipts? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger" title="Delete Invoice">
+                    <i class="bi bi-trash"></i> Delete Invoice
+                </button>
+            </form>
+            {% endif %}
         </div>
     </div>
 
     <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="alert alert-info d-flex align-items-center justify-content-between mb-0" role="alert">
+                <div>
+                    <i class="bi bi-whatsapp"></i>
+                    <strong>WhatsApp status:</strong>
+                    {% if latest_wa_share %}
+                        Last shared {{ latest_wa_share.timestamp|date:"M d, Y H:i" }} by {{ latest_wa_share.user.username }}.
+                    {% else %}
+                        Not shared yet.
+                    {% endif %}
+                </div>
+            </div>
+        </div>
         <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body">

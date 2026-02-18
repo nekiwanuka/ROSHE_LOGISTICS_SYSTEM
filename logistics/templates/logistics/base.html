@@ -320,6 +320,30 @@
             background-color: white;
             margin-bottom: 20px;
         }
+
+        .tooltip .tooltip-inner {
+            background-color: var(--primary-color);
+        }
+
+        .bs-tooltip-top .tooltip-arrow::before,
+        .bs-tooltip-auto[data-popper-placement^="top"] .tooltip-arrow::before {
+            border-top-color: var(--primary-color);
+        }
+
+        .bs-tooltip-end .tooltip-arrow::before,
+        .bs-tooltip-auto[data-popper-placement^="right"] .tooltip-arrow::before {
+            border-right-color: var(--primary-color);
+        }
+
+        .bs-tooltip-bottom .tooltip-arrow::before,
+        .bs-tooltip-auto[data-popper-placement^="bottom"] .tooltip-arrow::before {
+            border-bottom-color: var(--primary-color);
+        }
+
+        .bs-tooltip-start .tooltip-arrow::before,
+        .bs-tooltip-auto[data-popper-placement^="left"] .tooltip-arrow::before {
+            border-left-color: var(--primary-color);
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -337,6 +361,19 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
+                    {% if app_perms.approve_verify_receipts %}
+                    <li class="nav-item me-2">
+                        <a class="nav-link" href="{% url 'receipt_list' %}" title="Pending verification receipts">
+                            <i class="bi bi-bell"></i>
+                            Pending verification
+                            {% if pending_verification_count > 0 %}
+                            <span class="badge bg-warning text-dark ms-1">{{ pending_verification_count }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary ms-1">0</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-person"></i> {{ user.username }} ({{ user.get_role_display }})
@@ -695,6 +732,61 @@
 
     <script>
         (function () {
+            function inferActionLabel(el) {
+                var explicit = (el.getAttribute('title') || '').trim();
+                if (explicit) return explicit;
+
+                var aria = (el.getAttribute('aria-label') || '').trim();
+                if (aria) return aria;
+
+                var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                if (text) return text;
+
+                var href = (el.getAttribute('href') || '').toLowerCase();
+                if (href.indexOf('/delete/') !== -1) return 'Delete';
+                if (href.indexOf('/update/') !== -1 || href.indexOf('/edit/') !== -1) return 'Edit';
+                if (href.indexOf('/create/') !== -1) return 'Create';
+
+                var icon = el.querySelector('i[class*="bi-"]');
+                if (icon && icon.className.indexOf('bi-trash') !== -1) return 'Delete';
+                if (icon && icon.className.indexOf('bi-pencil') !== -1) return 'Edit';
+                if (icon && icon.className.indexOf('bi-search') !== -1) return 'Search';
+
+                return '';
+            }
+
+            function bindActionTooltips() {
+                if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
+
+                var selectors = '.btn, button, a.btn';
+                var nodes = document.querySelectorAll(selectors);
+                for (var i = 0; i < nodes.length; i++) {
+                    var el = nodes[i];
+
+                    var toggle = (el.getAttribute('data-bs-toggle') || '').trim();
+                    if (toggle && toggle !== 'tooltip') continue;
+
+                    var label = inferActionLabel(el);
+                    if (!label) continue;
+
+                    if (!el.getAttribute('title')) {
+                        el.setAttribute('title', label);
+                    }
+
+                    if (!el.getAttribute('data-bs-toggle')) {
+                        el.setAttribute('data-bs-toggle', 'tooltip');
+                    }
+
+                    if (!el.getAttribute('data-bs-placement')) {
+                        el.setAttribute('data-bs-placement', 'top');
+                    }
+
+                    if (!bootstrap.Tooltip.getInstance(el)) {
+                        new bootstrap.Tooltip(el);
+                    }
+                }
+            }
+
             function smartTitleCaseLoose(text) {
                 if (text === null || typeof text === 'undefined') return text;
                 var s = String(text);
@@ -756,6 +848,8 @@
             }
 
             function init() {
+                bindActionTooltips();
+
                 var titleNodes = document.querySelectorAll('[data-smart-titlecase="1"]');
                 for (var i = 0; i < titleNodes.length; i++) {
                     bindSmartFormatter(titleNodes[i], smartTitleCaseLoose, '_smartTitlecaseBound');

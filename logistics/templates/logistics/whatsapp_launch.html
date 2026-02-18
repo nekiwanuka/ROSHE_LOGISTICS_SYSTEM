@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launching WhatsApp…</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: #f5f5f5;
+            color: #003366;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-top: 4px solid #003366;
+            border-radius: 8px;
+            padding: 18px 20px;
+            width: min(92vw, 520px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+        }
+        .hint {
+            color: #555;
+            font-size: 0.95rem;
+            margin-top: 8px;
+        }
+        .actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        a.btn {
+            text-decoration: none;
+            border: 1px solid #003366;
+            color: #003366;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <strong>Launching WhatsApp…</strong>
+        <div class="hint">Trying the WhatsApp app first. If it doesn’t open, WhatsApp Web will open automatically.</div>
+        <div class="actions">
+            <a class="btn" href="{{ app_url }}">Open App</a>
+            <a class="btn" href="{{ web_url }}" target="_blank" rel="noopener">Open Web</a>
+        </div>
+        <div id="closeHint" class="hint" style="display:none;">You can close this tab now.</div>
+    </div>
+
+    <script>
+        (function () {
+            var app = "{{ app_url|escapejs }}";
+            var web = "{{ web_url|escapejs }}";
+
+            window.location.href = app;
+            setTimeout(function () {
+                window.location.href = web;
+            }, 1200);
+
+            setTimeout(function () {
+                window.close();
+                setTimeout(function () {
+                    var hint = document.getElementById('closeHint');
+                    if (hint) {
+                        hint.style.display = 'block';
+                    }
+                }, 250);
+            }, 2600);
+        })();
+    </script>
+</body>
+</html>

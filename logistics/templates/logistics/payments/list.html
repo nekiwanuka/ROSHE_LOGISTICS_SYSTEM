@@ -153,6 +153,18 @@
                                 >
                                     <i class="bi bi-pencil"></i>
                                 </a>
+                                {% if user.role == 'superuser' or payment.amount_paid == 0 %}
+                                <form method="post" action="{% url 'payment_delete' payment.id %}" class="m-0" onsubmit="return confirm('Delete this invoice and all its receipts? This cannot be undone.');">
+                                    {% csrf_token %}
+                                    <button
+                                        type="submit"
+                                        class="btn btn-sm btn-danger"
+                                        title="Delete Invoice"
+                                    >
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
                                 {% endif %}
                             </div>
                         </td>

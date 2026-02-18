@@ -1,14 +1,18 @@
 """Views for the logistics management system."""
 import csv
 import logging
+import re
+import json
 from decimal import Decimal
 from datetime import datetime, timedelta
 from io import BytesIO
+from urllib.parse import quote
 
 from django.contrib import messages
 from django.core.management import call_command
 from django.core.mail import EmailMessage
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.paginator import Paginator
@@ -18,9 +22,11 @@ from django.db.models.deletion import PROTECT
 from django.conf import settings
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -39,6 +45,7 @@ from .forms import (
     SendDocumentEmailForm,
     TransitForm,
     UserRegistrationForm,
+    UserDetailsUpdateForm,
     UserRoleUpdateForm,
     UserPermissionOverridesForm,
 )
@@ -55,6 +62,7 @@ from .models import (
 )
 
 from .permissions import ROLE_DEFAULTS, get_app_permissions, has_app_permission
+from .whatsapp_api import send_whatsapp_document
 
 
 logger = logging.getLogger(__name__)
@@ -166,6 +174,46 @@ def _fmt_number(value, decimals=2):
             return f"{float(value):.{decimals}f}"
         except Exception:
             return str(value)
+
+
+def _normalize_whatsapp_phone(raw_value, default_country_code='256'):
+    if raw_value is None:
+        return ''
+
+    digits = re.sub(r'\D', '', str(raw_value))
+    if not digits:
+        return ''
+
+    if digits.startswith('00'):
+        digits = digits[2:]
+
+    if digits.startswith('0'):
+        digits = f"{default_country_code}{digits[1:]}"
+    elif len(digits) == 9:
+        digits = f"{default_country_code}{digits}"
+
+    return digits
+
+
+def _whatsapp_share_url(*, phone, message):
+    safe_phone = _normalize_whatsapp_phone(phone)
+    recipient = safe_phone or '256773183916'
+    return f"https://wa.me/{recipient}?text={quote(message or '')}"
+
+
+def _whatsapp_app_url(*, phone, message):
+    safe_phone = _normalize_whatsapp_phone(phone)
+    recipient = safe_phone or '256773183916'
+    return f"whatsapp://send?phone={recipient}&text={quote(message or '')}"
+
+
+def _log_whatsapp_share(*, model_type, object_id, label, recipient_phone, user):
+    normalized = _normalize_whatsapp_phone(recipient_phone) or 'unknown'
+    log_audit(model_type, 'update', object_id, f"[WA] {label} -> {normalized}", user)
+
+
+def _is_whatsapp_api_mode_enabled():
+    return str(getattr(settings, 'WHATSAPP_MODE', 'link')).strip().lower() == 'api'
 
 
 def _fmt_money(value):
@@ -295,8 +343,8 @@ def register_view(request):
             'create_receipts': True,
             'print_statements': True,
             'edit_delete_documents': True,
-            'approve_verify_receipts': True,
-            'void_unvoid_receipts': True,
+            'approve_verify_receipts': False,
+            'void_unvoid_receipts': False,
             'view_revenue': True,
             'access_reports': True,
         },
@@ -340,8 +388,8 @@ def register_view(request):
             'create_receipts': True,
             'print_statements': True,
             'edit_delete_documents': False,
-            'approve_verify_receipts': False,
-            'void_unvoid_receipts': False,
+            'approve_verify_receipts': True,
+            'void_unvoid_receipts': True,
             'view_revenue': False,
             'access_reports': True,
         },
@@ -409,6 +457,135 @@ def dashboard(request):
         'enable_seed_tools': getattr(settings, 'ENABLE_SEED_TOOLS', False),
     }
     return render(request, 'logistics/dashboard.html', context)
+
+
+@login_required
+def global_search(request):
+    query = (request.GET.get('q') or '').strip()
+
+    results = {
+        'clients': [],
+        'loadings': [],
+        'transits': [],
+        'payments': [],
+        'receipts': [],
+        'quotes': [],
+        'containers': [],
+        'users': [],
+    }
+
+    if query:
+        results['clients'] = list(
+            Client.objects.filter(
+                Q(client_id__icontains=query)
+                | Q(name__icontains=query)
+                | Q(contact_person__icontains=query)
+                | Q(company_name__icontains=query)
+                | Q(phone__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        results['loadings'] = list(
+            Loading.objects.select_related('client')
+            .filter(
+                Q(container_number__icontains=query)
+                | Q(client__name__icontains=query)
+                | Q(client__client_id__icontains=query)
+                | Q(origin__icontains=query)
+                | Q(destination__icontains=query)
+                | Q(item_description__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        results['transits'] = list(
+            Transit.objects.filter(
+                Q(container_number__icontains=query)
+                | Q(shipping_line__icontains=query)
+                | Q(remarks__icontains=query)
+                | Q(status__icontains=query)
+                | Q(eta_location__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        results['payments'] = list(
+            Payment.objects.select_related('loading__client')
+            .filter(
+                Q(receipt_number__icontains=query)
+                | Q(loading__container_number__icontains=query)
+                | Q(loading__client__name__icontains=query)
+                | Q(loading__client__client_id__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        receipt_filters = (
+            Q(reference__icontains=query)
+            | Q(payment__loading__container_number__icontains=query)
+            | Q(payment__loading__client__name__icontains=query)
+            | Q(payment__loading__client__client_id__icontains=query)
+            | Q(notes__icontains=query)
+        )
+        receipt_id_text = _numeric_part(query)
+        if receipt_id_text and receipt_id_text.isdigit():
+            receipt_filters |= Q(pk=int(receipt_id_text))
+
+        results['receipts'] = list(
+            PaymentTransaction.objects.select_related('payment__loading__client')
+            .filter(receipt_filters)
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        results['quotes'] = list(
+            Quote.objects.select_related('client', 'loading')
+            .filter(
+                Q(container_number__icontains=query)
+                | Q(client__name__icontains=query)
+                | Q(client__client_id__icontains=query)
+                | Q(origin__icontains=query)
+                | Q(destination__icontains=query)
+                | Q(notes__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        results['containers'] = list(
+            ContainerReturn.objects.select_related('loading__client')
+            .filter(
+                Q(container_number__icontains=query)
+                | Q(loading__container_number__icontains=query)
+                | Q(loading__client__name__icontains=query)
+                | Q(loading__client__client_id__icontains=query)
+                | Q(status__icontains=query)
+                | Q(condition__icontains=query)
+                | Q(remarks__icontains=query)
+            )
+            .order_by('-created_at', '-pk')[:8]
+        )
+
+        if _can_manage_users(request.user):
+            users_qs = CustomUser.objects.all().order_by('-created_at', '-id')
+            if getattr(request.user, 'role', None) == 'manager' and not getattr(request.user, 'is_superuser', False):
+                users_qs = users_qs.filter(role__in={'accountant', 'data_entry'})
+            results['users'] = list(
+                users_qs.filter(
+                    Q(username__icontains=query)
+                    | Q(email__icontains=query)
+                    | Q(first_name__icontains=query)
+                    | Q(last_name__icontains=query)
+                    | Q(phone__icontains=query)
+                )[:8]
+            )
+
+    total_results = sum(len(items) for items in results.values())
+    context = {
+        'query': query,
+        'results': results,
+        'total_results': total_results,
+    }
+    return render(request, 'logistics/search_results.html', context)
 
 
 @login_required
@@ -517,8 +694,8 @@ def user_permissions_update(request, pk):
         messages.error(request, 'Only a Django superuser can modify a superuser account.')
         return redirect('user_list')
 
-    if getattr(target_user, 'role', None) in {'superuser', 'managing_director'}:
-        messages.error(request, 'Permissions for this account type are managed automatically.')
+    if bool(getattr(target_user, 'is_superuser', False)) and not bool(getattr(request.user, 'is_superuser', False)):
+        messages.error(request, 'Only a Django superuser can edit a superuser account.')
         return redirect('user_list')
 
     if request.method == 'POST':
@@ -575,6 +752,86 @@ def user_permissions_update(request, pk):
 
 
 @login_required
+def user_update_details(request, pk):
+    """Superuser/Managing Director can edit user account details."""
+    if not _can_manage_users(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('dashboard')
+
+    is_privileged_editor = bool(getattr(request.user, 'is_superuser', False)) or getattr(
+        request.user, 'role', None
+    ) in {'superuser', 'managing_director'}
+    if not is_privileged_editor:
+        messages.error(request, 'Only Admin or Managing Director can edit user details.')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    if bool(getattr(target_user, 'is_superuser', False)) and not bool(getattr(request.user, 'is_superuser', False)):
+        messages.error(request, 'Only Admin can edit an admin account.')
+        return redirect('user_list')
+
+    if request.method == 'POST':
+        form = UserDetailsUpdateForm(request.POST, instance=target_user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'User details updated for {target_user.username}.')
+            log_audit('user', 'update', target_user.id, f'Details updated: {target_user.username}', request.user)
+            return redirect('user_list')
+    else:
+        form = UserDetailsUpdateForm(instance=target_user)
+
+    return render(
+        request,
+        'logistics/users/details.html',
+        {
+            'target_user': target_user,
+            'form': form,
+        },
+    )
+
+
+@login_required
+def user_change_password(request, pk):
+    """Superuser/Managing Director can set a user's password."""
+    if not _can_manage_users(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('dashboard')
+
+    is_privileged_editor = bool(getattr(request.user, 'is_superuser', False)) or getattr(
+        request.user, 'role', None
+    ) in {'superuser', 'managing_director'}
+    if not is_privileged_editor:
+        messages.error(request, 'Only Admin or Managing Director can change user passwords.')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    if bool(getattr(target_user, 'is_superuser', False)) and not bool(getattr(request.user, 'is_superuser', False)):
+        messages.error(request, 'Only Admin can change an admin password.')
+        return redirect('user_list')
+
+    if request.method == 'POST':
+        form = SetPasswordForm(user=target_user, data=request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Password updated for {target_user.username}.')
+            log_audit('user', 'update', target_user.id, f'Password updated: {target_user.username}', request.user)
+            return redirect('user_list')
+    else:
+        form = SetPasswordForm(user=target_user)
+
+    return render(
+        request,
+        'logistics/users/change_password.html',
+        {
+            'target_user': target_user,
+            'form': form,
+        },
+    )
+
+
+@login_required
 def user_role_update(request, pk):
     """MD/superuser can update a user's role."""
     if not _can_manage_users(request.user):
@@ -585,7 +842,7 @@ def user_role_update(request, pk):
         request.user, 'role', None
     ) in {'superuser', 'managing_director'}
     if not is_privileged_editor:
-        messages.error(request, 'Only the Managing Director can edit user roles.')
+        messages.error(request, 'Only Admin or Managing Director can edit user roles.')
         return redirect('user_list')
 
     target_user = get_object_or_404(CustomUser, pk=pk)
@@ -636,6 +893,39 @@ def user_role_update(request, pk):
             'form': form,
         },
     )
+
+
+@login_required
+def user_login_as(request, pk):
+    """Allow Superuser/Managing Director to sign in as another user."""
+    if request.method != 'POST':
+        return redirect('user_list')
+
+    actor = request.user
+    actor_is_superuser = bool(getattr(actor, 'is_superuser', False))
+    actor_is_md = getattr(actor, 'role', None) == 'managing_director'
+    if not (actor_is_superuser or actor_is_md):
+        messages.error(request, 'Permission denied')
+        return redirect('user_list')
+
+    target_user = get_object_or_404(CustomUser, pk=pk)
+
+    if target_user.pk == actor.pk:
+        messages.error(request, 'You are already signed in as this user.')
+        return redirect('user_list')
+
+    if actor_is_md and (bool(getattr(target_user, 'is_superuser', False)) or getattr(target_user, 'role', None) == 'superuser'):
+        messages.error(request, 'Managing Director cannot login as Admin users.')
+        return redirect('user_list')
+
+    if not bool(getattr(target_user, 'is_active', False)):
+        messages.error(request, 'Cannot login as an inactive user.')
+        return redirect('user_list')
+
+    _finalize_login(request, target_user)
+    log_audit('user', 'update', target_user.id, f'Login-as: {actor.username} -> {target_user.username}', actor)
+    messages.success(request, f'You are now signed in as {target_user.username}.')
+    return redirect('dashboard')
 
 
 @login_required
@@ -1076,6 +1366,31 @@ def payment_update(request, pk):
 
 
 @login_required
+def payment_delete(request, pk):
+    if not _has_full_app_access(request.user):
+        messages.error(request, 'Permission denied')
+        return redirect('payment_list')
+
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method')
+        return redirect('payment_detail', pk=pk)
+
+    payment = get_object_or_404(Payment.objects.select_related('loading__client'), pk=pk)
+
+    if getattr(request.user, 'role', None) == 'managing_director' and (payment.amount_paid or 0) > 0:
+        messages.error(request, 'Managing Director cannot delete paid or partially paid invoices.')
+        return redirect('payment_detail', pk=pk)
+
+    payment_str = str(payment)
+    payment_id = payment.id
+
+    payment.delete()
+    messages.success(request, 'Invoice deleted successfully')
+    log_audit('payment', 'delete', payment_id, payment_str, request.user)
+    return redirect('payment_list')
+
+
+@login_required
 def payment_detail(request, pk):
     payment = get_object_or_404(Payment.objects.select_related('loading__client'), pk=pk)
     transactions = payment.transactions.select_related('created_by', 'verified_by').all()
@@ -1087,6 +1402,12 @@ def payment_detail(request, pk):
     rejected_totals = payment.transactions.filter(verification_status='rejected', is_voided=False).aggregate(total=Sum('amount'))
     rejected_amount = rejected_totals['total'] or 0
     rejected_count = payment.transactions.filter(verification_status='rejected', is_voided=False).count()
+    latest_wa_share = (
+        AuditLog.objects.select_related('user')
+        .filter(model_type='payment', action='update', object_id=payment.id, object_str__startswith='[WA]')
+        .order_by('-timestamp')
+        .first()
+    )
     if request.method == 'POST':
         action = request.POST.get('action', 'create_transaction')
         if action == 'verify_transaction':
@@ -1164,12 +1485,192 @@ def payment_detail(request, pk):
         'can_verify': has_app_permission(request.user, 'approve_verify_receipts'),
         'can_void': has_app_permission(request.user, 'void_unvoid_receipts'),
         'can_record_payment': has_app_permission(request.user, 'create_receipts'),
+        'can_delete_invoice': _has_full_app_access(request.user)
+        and not (
+            getattr(request.user, 'role', None) == 'managing_director'
+            and (payment.amount_paid or 0) > 0
+        ),
         'pending_amount': pending_amount,
         'pending_count': pending_count,
         'rejected_amount': rejected_amount,
         'rejected_count': rejected_count,
+        'latest_wa_share': latest_wa_share,
     }
     return render(request, 'logistics/payments/detail.html', context)
+
+
+@login_required
+def payment_invoice_whatsapp(request, pk):
+    payment = get_object_or_404(Payment.objects.select_related('loading__client'), pk=pk)
+    loading = payment.loading
+    client = loading.client
+
+    invoice_preview_path = reverse('payment_invoice', kwargs={'pk': payment.pk}) + '?preview=1'
+    invoice_full_url = request.build_absolute_uri(invoice_preview_path)
+
+    wa_message = (
+        f"ROSHE LOGISTICS - Shipment Invoice {payment.invoice_number}\n"
+        f"Client: {client.name}\n"
+        f"Container: {loading.container_number}\n"
+        f"Amount Due: ${payment.balance:,.2f}\n"
+        f"View Invoice: {invoice_full_url}"
+    )
+
+    target_phone = _normalize_whatsapp_phone(client.phone)
+
+    if _is_whatsapp_api_mode_enabled():
+        pdf_bytes = payment_invoice(request, pk).content
+        sent = send_whatsapp_document(
+            to_phone=target_phone,
+            caption=f"Shipment Invoice {payment.invoice_number}",
+            filename=f"{(getattr(client, 'client_id', None) or 'NOCLIENT')}_INV_{payment.invoice_number}.pdf",
+            file_bytes=pdf_bytes,
+            mime_type='application/pdf',
+        )
+        if sent.ok:
+            _log_whatsapp_share(
+                model_type='payment',
+                object_id=payment.id,
+                label=f"Invoice {payment.invoice_number} [API:{sent.message_id or 'sent'}]",
+                recipient_phone=target_phone,
+                user=request.user,
+            )
+            messages.success(request, f"Invoice sent to WhatsApp ({target_phone or 'default'}).")
+            return redirect('payment_detail', pk=payment.pk)
+
+        messages.error(request, f"WhatsApp API send failed: {sent.error or 'unknown error'}. Opened link fallback.")
+
+    _log_whatsapp_share(
+        model_type='payment',
+        object_id=payment.id,
+        label=f"Invoice {payment.invoice_number}",
+        recipient_phone=target_phone,
+        user=request.user,
+    )
+    return render(
+        request,
+        'logistics/whatsapp_launch.html',
+        {
+            'app_url': _whatsapp_app_url(phone=target_phone, message=wa_message),
+            'web_url': _whatsapp_share_url(phone=target_phone, message=wa_message),
+        },
+    )
+
+
+@login_required
+def payment_receipt_whatsapp(request, transaction_id):
+    transaction = get_object_or_404(
+        PaymentTransaction.objects.select_related('payment__loading__client'),
+        pk=transaction_id,
+    )
+
+    payment = transaction.payment
+    if getattr(transaction, 'is_voided', False):
+        messages.error(request, 'This receipt has been voided.')
+        return redirect('payment_detail', pk=payment.pk)
+    if transaction.verification_status != 'approved':
+        messages.error(request, 'This payment has not been verified yet.')
+        return redirect('payment_detail', pk=payment.pk)
+
+    loading = payment.loading
+    client = loading.client
+
+    receipt_preview_path = reverse('payment_receipt', kwargs={'transaction_id': transaction.id}) + '?preview=1'
+    receipt_full_url = request.build_absolute_uri(receipt_preview_path)
+
+    wa_message = (
+        f"ROSHE LOGISTICS - Receipt {transaction.receipt_number}\n"
+        f"Client: {client.name}\n"
+        f"Container: {loading.container_number}\n"
+        f"Amount: ${transaction.amount:,.2f}\n"
+        f"View Receipt: {receipt_full_url}"
+    )
+
+    target_phone = _normalize_whatsapp_phone(client.phone)
+
+    if _is_whatsapp_api_mode_enabled():
+        pdf_bytes = payment_receipt(request, transaction_id).content
+        sent = send_whatsapp_document(
+            to_phone=target_phone,
+            caption=f"Payment Receipt {transaction.receipt_number}",
+            filename=f"{(getattr(client, 'client_id', None) or 'NOCLIENT')}_RCT_{_numeric_part(transaction.receipt_number, default=f'{transaction.pk:05d}')}.pdf",
+            file_bytes=pdf_bytes,
+            mime_type='application/pdf',
+        )
+        if sent.ok:
+            _log_whatsapp_share(
+                model_type='receipt',
+                object_id=transaction.id,
+                label=f"Receipt {transaction.receipt_number} [API:{sent.message_id or 'sent'}]",
+                recipient_phone=target_phone,
+                user=request.user,
+            )
+            messages.success(request, f"Receipt sent to WhatsApp ({target_phone or 'default'}).")
+            return redirect('payment_detail', pk=payment.pk)
+
+        messages.error(request, f"WhatsApp API send failed: {sent.error or 'unknown error'}. Opened link fallback.")
+
+    _log_whatsapp_share(
+        model_type='receipt',
+        object_id=transaction.id,
+        label=f"Receipt {transaction.receipt_number}",
+        recipient_phone=target_phone,
+        user=request.user,
+    )
+    return render(
+        request,
+        'logistics/whatsapp_launch.html',
+        {
+            'app_url': _whatsapp_app_url(phone=target_phone, message=wa_message),
+            'web_url': _whatsapp_share_url(phone=target_phone, message=wa_message),
+        },
+    )
+
+
+@csrf_exempt
+def whatsapp_webhook(request):
+    """Meta WhatsApp webhook (verification + status callbacks)."""
+    verify_token = str(getattr(settings, 'WHATSAPP_WEBHOOK_VERIFY_TOKEN', '') or '').strip()
+
+    if request.method == 'GET':
+        mode = request.GET.get('hub.mode')
+        token = request.GET.get('hub.verify_token')
+        challenge = request.GET.get('hub.challenge')
+        if mode == 'subscribe' and verify_token and token == verify_token:
+            return HttpResponse(challenge or '', status=200)
+        return HttpResponse('Forbidden', status=403)
+
+    if request.method != 'POST':
+        return HttpResponse('Method Not Allowed', status=405)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'invalid_json'}, status=400)
+
+    # Log raw status events for traceability.
+    try:
+        entries = payload.get('entry') or []
+        for entry in entries:
+            for change in (entry.get('changes') or []):
+                value = change.get('value') or {}
+                statuses = value.get('statuses') or []
+                for status in statuses:
+                    msg_id = status.get('id')
+                    status_state = status.get('status')
+                    recipient = status.get('recipient_id')
+                    object_str = f"[WA_STATUS] id={msg_id or '-'} status={status_state or '-'} to={recipient or '-'}"
+                    AuditLog.objects.create(
+                        user=None,
+                        model_type='payment',
+                        action='update',
+                        object_id=0,
+                        object_str=object_str,
+                    )
+    except Exception:
+        logger.exception('Failed to process WhatsApp webhook payload')
+
+    return JsonResponse({'ok': True})
 
 
 @login_required
@@ -2192,12 +2693,18 @@ def receipt_list(request):
         receipts = receipts.filter(is_voided=False)
 
     if search:
-        receipts = receipts.filter(
-            Q(receipt_number__icontains=search)
+        search_filters = (
+            Q(reference__icontains=search)
             | Q(payment__loading__container_number__icontains=search)
             | Q(payment__loading__client__name__icontains=search)
             | Q(payment__loading__client__client_id__icontains=search)
         )
+
+        receipt_id_text = _numeric_part(search)
+        if receipt_id_text and receipt_id_text.isdigit():
+            search_filters |= Q(pk=int(receipt_id_text))
+
+        receipts = receipts.filter(search_filters)
 
     receipts = receipts.order_by('-created_at', '-pk')
     page_obj, query_string, page_range = paginate_queryset(request, receipts)
