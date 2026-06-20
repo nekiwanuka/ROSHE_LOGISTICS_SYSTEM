@@ -85,9 +85,9 @@
                     <div class="list-group list-group-flush">
                         {% for loading in loadings %}
                         <a href="{% url 'loading_detail' loading.id %}" class="list-group-item list-group-item-action">
-                            <strong>{{ loading.container_number }}</strong>
+                            <strong>{{ loading.container_number|default:"Cargo" }}</strong>
                             <br>
-                            <small class="text-muted">{{ loading.destination }}</small>
+                            <small class="text-muted">{{ loading.get_cargo_type_display|default:"-" }} · {{ loading.destination }}</small>
                         </a>
                         {% endfor %}
                     </div>

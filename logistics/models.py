@@ -4,6 +4,7 @@ Database models for the logistics management system
 from django.db import models
 from django.db.models import Sum
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 import secrets
 import string
@@ -181,13 +182,20 @@ class Loading(models.Model):
         ('fcl', 'FCL (Full Container Load)'),
     )
 
+    CARGO_TYPE_CHOICES = (
+        ('air_cargo', 'Air Cargo'),
+        ('freight_cargo', 'Freight Cargo'),
+    )
+
     flow_type = models.CharField(max_length=10, choices=FLOW_CHOICES, default='fcl')
+    cargo_type = models.CharField(max_length=20, choices=CARGO_TYPE_CHOICES, default='freight_cargo')
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='loadings')
     loading_date = models.DateTimeField()
     item_description = models.TextField(blank=True, null=True)
+    ctns = models.PositiveIntegerField(null=True, blank=True, verbose_name='CTNs')
     # Stored as a decimal; the business meaning is CBM (volume).
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    container_number = models.CharField(max_length=100)
+    container_number = models.CharField(max_length=100, blank=True)
     container_size = models.CharField(max_length=20, choices=CONTAINER_SIZE_CHOICES, blank=True)
     origin = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
@@ -201,6 +209,13 @@ class Loading(models.Model):
     def __str__(self):
         label = self.container_number or f"Cargo #{self.pk}"
         return f"{label} - {self.client.client_id} - {self.client.name}"
+
+    def clean(self):
+        super().clean()
+        if self.cargo_type == 'freight_cargo' and not (self.container_number or '').strip():
+            raise ValidationError({
+                'container_number': 'Container number is required for Freight Cargo.',
+            })
 
     def save(self, *args, **kwargs):
         self.container_number = _normalize_container_number(self.container_number)

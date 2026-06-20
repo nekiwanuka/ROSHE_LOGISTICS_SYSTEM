@@ -214,6 +214,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Container</th>
+                                    <th>Mode</th>
                                     <th>Client</th>
                                     <th>Destination</th>
                                 </tr>
@@ -223,15 +224,16 @@
                                 <tr>
                                     <td>
                                         <a href="{% url 'loading_detail' loading.id %}">
-                                            {{ loading.container_number }}
+                                            {{ loading.container_number|default:"Cargo" }}
                                         </a>
                                     </td>
+                                    <td>{{ loading.get_cargo_type_display|default:"-" }}</td>
                                     <td>{{ loading.client.name }}</td>
                                     <td>{{ loading.destination }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted py-4">
+                                    <td colspan="4" class="text-center text-muted py-4">
                                         <div class="empty-state">
                                             <i class="bi bi-box"></i>
                                             <div>No cargo yet</div>

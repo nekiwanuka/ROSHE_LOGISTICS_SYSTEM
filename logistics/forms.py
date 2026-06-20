@@ -405,17 +405,26 @@ class LoadingForm(forms.ModelForm):
         model = Loading
         fields = (
             'flow_type',
+            'cargo_type',
             'client',
             'loading_date',
             'item_description',
+            'ctns',
             'weight',
             'container_number',
             'container_size',
             'origin',
             'destination',
         )
+        labels = {
+            'cargo_type': 'Cargo Type',
+            'ctns': 'CTNs',
+        }
         widgets = {
             'flow_type': forms.Select(attrs={
+                'class': 'form-control'
+            }),
+            'cargo_type': forms.Select(attrs={
                 'class': 'form-control'
             }),
             'client': forms.Select(
@@ -434,6 +443,11 @@ class LoadingForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Item Description',
                 'rows': 3
+            }),
+            'ctns': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'CTNs',
+                'min': '0'
             }),
             'weight': _decimal_text_widget(placeholder='CBM'),
             'container_number': forms.TextInput(attrs={
@@ -465,20 +479,29 @@ class LoadingForm(forms.ModelForm):
         self.fields['client'].queryset = Client.objects.order_by('name')
         self.fields['client'].label_from_instance = lambda c: f"{c.client_id} - {c.name}"
         self.fields['item_description'].required = False
+        self.fields['ctns'].required = False
         self.fields['weight'].required = False
         self.fields['weight'].label = 'CBM'
+        self.fields['container_number'].required = False
         self.fields['container_size'].required = False
         self.fields['client'].empty_label = 'Select client'
         flow_choices = [choice for choice in self.fields['flow_type'].choices if choice[0]]
         self.fields['flow_type'].choices = [('', 'Select flow type')] + flow_choices
+        cargo_choices = [choice for choice in self.fields['cargo_type'].choices if choice[0]]
+        self.fields['cargo_type'].choices = [('', 'Select cargo type')] + cargo_choices
         size_choices = [choice for choice in self.fields['container_size'].choices if choice[0]]
         self.fields['container_size'].choices = [('', 'Select size (optional)')] + size_choices
 
     def clean(self):
         cleaned = super().clean()
         flow_type = cleaned.get('flow_type')
+        cargo_type = cleaned.get('cargo_type')
         weight = cleaned.get('weight')
+        container_number = cleaned.get('container_number')
         container_size = cleaned.get('container_size')
+
+        if cargo_type == 'freight_cargo' and not (container_number or '').strip():
+            self.add_error('container_number', 'Container number is required for Freight Cargo.')
 
         if flow_type == 'lcl':
             if weight in (None, ''):

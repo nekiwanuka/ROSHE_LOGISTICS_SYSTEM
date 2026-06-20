@@ -1125,6 +1125,7 @@ def loading_list(request):
     if search:
         loadings = loadings.filter(
             Q(container_number__icontains=search)
+            | Q(cargo_type__icontains=search)
             | Q(client__name__icontains=search)
             | Q(origin__icontains=search)
             | Q(destination__icontains=search)
@@ -3120,10 +3121,12 @@ def export_shipments_csv(request):
     writer.writerow(
         [
             'Flow Type',
+            'Cargo Type',
             'Client',
             'Loading Date',
             'Item Description',
             'CBM',
+            'CTNs',
             'Container Number',
             'Container Size',
             'Origin',
@@ -3134,10 +3137,12 @@ def export_shipments_csv(request):
         writer.writerow(
             [
                 loading.get_flow_type_display(),
+                loading.get_cargo_type_display(),
                 loading.client.name,
                 _fmt_dt(loading.loading_date),
                 loading.item_description or '',
                 _fmt_number(loading.weight, decimals=2) if loading.weight is not None else '',
+                loading.ctns or '',
                 loading.container_number,
                 loading.get_container_size_display() if loading.container_size else '',
                 loading.origin,
@@ -3155,10 +3160,12 @@ def export_shipments_pdf(request):
         return denied
     headers = [
         'Flow Type',
+        'Cargo Type',
         'Client',
         'Loading Date',
         'Item Description',
         'CBM',
+        'CTNs',
         'Container Number',
         'Container Size',
         'Origin',
@@ -3167,10 +3174,12 @@ def export_shipments_pdf(request):
     rows = [
         [
             loading.get_flow_type_display(),
+            loading.get_cargo_type_display(),
             loading.client.name,
             _fmt_dt(loading.loading_date),
             loading.item_description or '',
             _fmt_number(loading.weight, decimals=2) if loading.weight is not None else '',
+            loading.ctns or '',
             loading.container_number,
             loading.get_container_size_display() if loading.container_size else '',
             loading.origin,

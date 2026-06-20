@@ -84,6 +84,11 @@
                                     <p class="field-hint">Choose LCL (rate per CBM) or FCL (rate per container).</p>
                                 </div>
                                 <div class="col-md-6">
+                                    <label for="{{ form.cargo_type.id_for_label }}" class="form-label">Cargo Type *</label>
+                                    {{ form.cargo_type }}
+                                    {% if form.cargo_type.errors %}<div class="text-danger">{{ form.cargo_type.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
                                     <label for="{{ form.client.id_for_label }}" class="form-label">Client *</label>
                                     {{ form.client }}
                                     {% if form.client.errors %}<div class="text-danger">{{ form.client.errors }}</div>{% endif %}
@@ -108,9 +113,10 @@
                             </div>
                             <div class="row g-4">
                                 <div class="col-md-6">
-                                    <label for="{{ form.container_number.id_for_label }}" class="form-label">Container Number *</label>
+                                    <label for="{{ form.container_number.id_for_label }}" class="form-label">Container Number</label>
                                     {{ form.container_number }}
                                     {% if form.container_number.errors %}<div class="text-danger">{{ form.container_number.errors }}</div>{% endif %}
+                                    <p class="field-hint">Required when cargo type is Freight Cargo.</p>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.container_size.id_for_label }}" class="form-label">Container Size</label>
@@ -136,9 +142,19 @@
                                 <span class="section-eyebrow">03 · Cargo Description</span>
                                 <p class="section-subtitle">Specify commodity details, packaging notes, or special handling instructions.</p>
                             </div>
-                            <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description</label>
-                            {{ form.item_description }}
-                            {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
+                            <div class="row g-4">
+                                <div class="col-12">
+                                    <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description</label>
+                                    {{ form.item_description }}
+                                    {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.ctns.id_for_label }}" class="form-label">CTNs</label>
+                                    {{ form.ctns }}
+                                    {% if form.ctns.errors %}<div class="text-danger">{{ form.ctns.errors }}</div>{% endif %}
+                                    <p class="field-hint">Cartons count.</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">

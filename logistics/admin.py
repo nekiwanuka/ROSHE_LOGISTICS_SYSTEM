@@ -40,9 +40,9 @@ class ClientAdmin(admin.ModelAdmin):
 @admin.register(Loading)
 class LoadingAdmin(admin.ModelAdmin):
     """Loading admin"""
-    list_display = ('container_number', 'flow_type', 'client', 'loading_date', 'origin', 'destination')
-    search_fields = ('container_number', 'client__name')
-    list_filter = ('flow_type', 'loading_date', 'origin', 'destination')
+    list_display = ('container_number', 'flow_type', 'cargo_type', 'client', 'loading_date', 'origin', 'destination')
+    search_fields = ('container_number', 'client__name', 'cargo_type')
+    list_filter = ('flow_type', 'cargo_type', 'loading_date', 'origin', 'destination')
     readonly_fields = ('created_at', 'updated_at')
 
 

@@ -16,7 +16,7 @@
         <div class="card-body">
             <form method="get" class="form-inline">
                 <div class="input-group w-100">
-                    <input type="text" name="search" class="form-control" placeholder="Search by Container #, Client, Origin, or Destination" value="{{ search }}">
+                    <input type="text" name="search" class="form-control" placeholder="Search by Container #, Client, Cargo Type, Origin, or Destination" value="{{ search }}">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> Search
                     </button>
@@ -36,6 +36,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Flow</th>
+                        <th>Cargo Type</th>
                         <th>Client</th>
                         <th>Date</th>
                         <th>Origin</th>
@@ -43,6 +44,7 @@
                         <th>Container</th>
                         <th>Container Size</th>
                         <th>CBM (LCL)</th>
+                        <th>CTNs</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -50,11 +52,12 @@
                     {% for loading in loadings %}
                     <tr>
                         <td><strong>{{ loading.get_flow_type_display }}</strong></td>
+                        <td>{{ loading.get_cargo_type_display|default:'-' }}</td>
                         <td>{{ loading.client.name }}</td>
                         <td>{{ loading.loading_date|date:"Y-m-d" }}</td>
                         <td>{{ loading.origin }}</td>
                         <td>{{ loading.destination }}</td>
-                        <td>{{ loading.container_number }}</td>
+                        <td>{{ loading.container_number|default:'-' }}</td>
                         <td>{{ loading.get_container_size_display|default:'-' }}</td>
                         <td>
                             {% if loading.flow_type == 'lcl' and loading.weight %}
@@ -63,6 +66,7 @@
                                 -
                             {% endif %}
                         </td>
+                        <td>{{ loading.ctns|default:'-' }}</td>
                         <td>
                             <a href="{% url 'loading_detail' loading.id %}" class="btn btn-sm btn-info">
                                 <i class="bi bi-eye"></i>
@@ -79,7 +83,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">No cargo found</td>
+                        <td colspan="11" class="text-center text-muted py-4">No cargo found</td>
                     </tr>
                     {% endfor %}
                 </tbody>
