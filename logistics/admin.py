@@ -76,7 +76,8 @@ class LoadingAdmin(admin.ModelAdmin):
         "origin",
         "destination",
         "ctns",
-        "rate_per_carton",
+        "gross_weight",
+        "rate_per_kg",
         "airline",
     )
     search_fields = (

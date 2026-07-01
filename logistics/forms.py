@@ -477,7 +477,8 @@ class LoadingForm(forms.ModelForm):
             "item_description",
             "ctns",
             "weight",
-            "rate_per_carton",
+            "gross_weight",
+            "rate_per_kg",
             "handling_fees",
             "airline",
             "size_per_carton",
@@ -490,7 +491,8 @@ class LoadingForm(forms.ModelForm):
             "cargo_type": "Cargo Type",
             "ctns": "CTNs",
             "weight": "CBM",
-            "rate_per_carton": "Rate per Carton",
+            "gross_weight": "Gross Weight",
+            "rate_per_kg": "Rate per Kg",
             "handling_fees": "Handling Fees",
             "size_per_carton": "Size per Carton",
         }
@@ -528,7 +530,10 @@ class LoadingForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "CTNs", "min": "0"}
             ),
             "weight": _decimal_text_widget(placeholder="CBM"),
-            "rate_per_carton": _decimal_text_widget(placeholder="Rate per carton"),
+            "gross_weight": _decimal_text_widget(
+                placeholder="Gross weight for all cartons (kg)"
+            ),
+            "rate_per_kg": _decimal_text_widget(placeholder="Rate per kg"),
             "handling_fees": _decimal_text_widget(
                 placeholder="Handling fees (optional)"
             ),
@@ -586,7 +591,8 @@ class LoadingForm(forms.ModelForm):
         self.fields["weight"].required = False
         self.fields["weight"].label = "CBM"
         self.fields["flow_type"].required = False
-        self.fields["rate_per_carton"].required = False
+        self.fields["gross_weight"].required = False
+        self.fields["rate_per_kg"].required = False
         self.fields["handling_fees"].required = False
         self.fields["airline"].required = False
         self.fields["size_per_carton"].required = False
@@ -617,15 +623,18 @@ class LoadingForm(forms.ModelForm):
         item_number = cleaned.get("item_number")
         item_description = cleaned.get("item_description")
         ctns = cleaned.get("ctns")
-        rate_per_carton = cleaned.get("rate_per_carton")
+        gross_weight = cleaned.get("gross_weight")
+        rate_per_kg = cleaned.get("rate_per_kg")
         container_number = cleaned.get("container_number")
         container_size = cleaned.get("container_size")
         origin = cleaned.get("origin")
 
         if cargo_type == "air_cargo":
             cleaned["flow_type"] = "lcl"
+            cleaned["weight"] = None
             cleaned["container_number"] = ""
             cleaned["container_size"] = ""
+            self.instance.weight = None
             self.instance.container_number = ""
             self.instance.container_size = ""
             if not (item_number or "").strip():
@@ -638,12 +647,12 @@ class LoadingForm(forms.ModelForm):
                 self.add_error(
                     "ctns", "Number of CTNs/cartons is required for Air Cargo."
                 )
-            if weight in (None, ""):
-                self.add_error("weight", "Gross weight is required for Air Cargo.")
-            if rate_per_carton is None:
+            if gross_weight in (None, ""):
                 self.add_error(
-                    "rate_per_carton", "Rate per carton is required for Air Cargo."
+                    "gross_weight", "Gross weight is required for Air Cargo."
                 )
+            if rate_per_kg is None:
+                self.add_error("rate_per_kg", "Rate per kg is required for Air Cargo.")
             return cleaned
 
         if cargo_type == "freight_cargo":
@@ -652,12 +661,14 @@ class LoadingForm(forms.ModelForm):
                     "flow_type", "Business flow is required for Freight Cargo."
                 )
             cleaned["item_number"] = ""
-            cleaned["rate_per_carton"] = None
+            cleaned["gross_weight"] = None
+            cleaned["rate_per_kg"] = None
             cleaned["handling_fees"] = 0
             cleaned["airline"] = ""
             cleaned["size_per_carton"] = ""
             self.instance.item_number = ""
-            self.instance.rate_per_carton = None
+            self.instance.gross_weight = None
+            self.instance.rate_per_kg = None
             self.instance.handling_fees = 0
             self.instance.airline = ""
             self.instance.size_per_carton = ""
@@ -803,7 +814,7 @@ class PaymentForm(forms.ModelForm):
             if air_total is None:
                 self.add_error(
                     "loading",
-                    "Selected Air Cargo is missing CTNs or rate per carton. Update the cargo record first.",
+                    "Selected Air Cargo is missing gross weight or rate per kg. Update the cargo record first.",
                 )
                 return cleaned
             cleaned["rate_per_cbm"] = None

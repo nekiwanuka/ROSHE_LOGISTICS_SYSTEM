@@ -73,8 +73,8 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if loading.cargo_type == 'air_cargo' and loading.weight %}
-                                {{ loading.weight }} kg
+                            {% if loading.cargo_type == 'air_cargo' and loading.gross_weight %}
+                                {{ loading.gross_weight }} kg
                             {% elif loading.flow_type == 'lcl' and loading.weight %}
                                 {{ loading.weight }} CBM
                             {% else %}

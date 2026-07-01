@@ -1959,14 +1959,14 @@ def payment_invoice(request, pk):
             f"Description: {loading.item_description or '—'}",
             f"CTNs: {loading.ctns if loading.ctns is not None else '—'}",
             (
-                f"Gross Weight: {loading.weight:.2f} kg"
-                if loading.weight is not None
+                f"Gross Weight: {loading.gross_weight:.2f} kg"
+                if loading.gross_weight is not None
                 else "Gross Weight: —"
             ),
             (
-                f"Rate per Carton: ${loading.rate_per_carton:,.2f}"
-                if loading.rate_per_carton is not None
-                else "Rate per Carton: —"
+                f"Rate per Kg: ${loading.rate_per_kg:,.2f}"
+                if loading.rate_per_kg is not None
+                else "Rate per Kg: —"
             ),
             f"Handling Fees: ${fee:,.2f}",
             (
@@ -2017,15 +2017,15 @@ def payment_invoice(request, pk):
     )
 
     if is_air_cargo:
-        qty_label = str(loading.ctns) if loading.ctns is not None else "—"
+        qty_label = (
+            f"{loading.gross_weight:.2f}" if loading.gross_weight is not None else "—"
+        )
         rate_label = (
-            f"{loading.rate_per_carton:,.2f}"
-            if loading.rate_per_carton is not None
-            else "—"
+            f"{loading.rate_per_kg:,.2f}" if loading.rate_per_kg is not None else "—"
         )
         freight_amount = (
-            (Decimal(loading.ctns) * loading.rate_per_carton)
-            if (loading.ctns is not None and loading.rate_per_carton is not None)
+            (loading.gross_weight * loading.rate_per_kg)
+            if (loading.gross_weight is not None and loading.rate_per_kg is not None)
             else None
         )
     elif flow == "lcl":
@@ -2062,7 +2062,7 @@ def payment_invoice(request, pk):
         else f"Shipment Charges ({route})"
     )
 
-    qty_header = "CTNs" if is_air_cargo else ("CBM" if flow == "lcl" else "Qty")
+    qty_header = "Kg" if is_air_cargo else ("CBM" if flow == "lcl" else "Qty")
     items = [
         ["Items", qty_header, "Rate", "Amount"],
         [freight_item, qty_label, rate_label, freight_amount_label],
@@ -3529,7 +3529,7 @@ def export_shipments_csv(request):
             "Item Description",
             "CTNs",
             "Gross Weight",
-            "Rate per Carton",
+            "Rate per Kg",
             "Handling Fees",
             "Air Cargo Total",
             "Airline",
@@ -3554,13 +3554,14 @@ def export_shipments_csv(request):
                 loading.item_description or "",
                 loading.ctns or "",
                 (
-                    _fmt_number(loading.weight, decimals=2)
-                    if loading.cargo_type == "air_cargo" and loading.weight is not None
+                    _fmt_number(loading.gross_weight, decimals=2)
+                    if loading.cargo_type == "air_cargo"
+                    and loading.gross_weight is not None
                     else ""
                 ),
                 (
-                    _fmt_number(loading.rate_per_carton, decimals=2)
-                    if loading.rate_per_carton is not None
+                    _fmt_number(loading.rate_per_kg, decimals=2)
+                    if loading.rate_per_kg is not None
                     else ""
                 ),
                 _fmt_number(loading.handling_fees, decimals=2),
@@ -3600,7 +3601,7 @@ def export_shipments_pdf(request):
         "Item Description",
         "CTNs",
         "Gross Weight",
-        "Rate per Carton",
+        "Rate per Kg",
         "Handling Fees",
         "Air Cargo Total",
         "Airline",
@@ -3621,11 +3622,12 @@ def export_shipments_pdf(request):
             loading.item_description or "",
             loading.ctns or "",
             (
-                _fmt_number(loading.weight, decimals=2)
-                if loading.cargo_type == "air_cargo" and loading.weight is not None
+                _fmt_number(loading.gross_weight, decimals=2)
+                if loading.cargo_type == "air_cargo"
+                and loading.gross_weight is not None
                 else ""
             ),
-            _fmt_money(loading.rate_per_carton),
+            _fmt_money(loading.rate_per_kg),
             _fmt_money(loading.handling_fees),
             _fmt_money(loading.air_cargo_total),
             loading.airline or "",

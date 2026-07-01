@@ -205,9 +205,12 @@ class Loading(models.Model):
     item_number = models.CharField(max_length=100, blank=True)
     item_description = models.TextField(blank=True, null=True)
     ctns = models.PositiveIntegerField(null=True, blank=True, verbose_name="CTNs")
-    # Freight LCL uses this as CBM; Air Cargo uses it as gross kilograms.
+    # Freight LCL uses this as CBM.
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    rate_per_carton = models.DecimalField(
+    gross_weight = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    rate_per_kg = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True
     )
     handling_fees = models.DecimalField(
@@ -238,11 +241,11 @@ class Loading(models.Model):
     def air_cargo_total(self):
         if (
             self.cargo_type != "air_cargo"
-            or self.ctns is None
-            or self.rate_per_carton is None
+            or self.gross_weight is None
+            or self.rate_per_kg is None
         ):
             return None
-        return (Decimal(self.ctns) * self.rate_per_carton) + (
+        return (self.gross_weight * self.rate_per_kg) + (
             self.handling_fees or Decimal("0")
         )
 

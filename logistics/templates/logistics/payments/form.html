@@ -37,8 +37,8 @@
                                         data-destination="{{ obj.destination|default:'' }}"
                                         data-airline="{{ obj.airline|default:'' }}"
                                         data-ctns="{{ obj.ctns|default:'' }}"
-                                        data-gross-weight="{{ obj.weight|default:'' }}"
-                                        data-rate-per-carton="{{ obj.rate_per_carton|default:'' }}"
+                                        data-gross-weight="{{ obj.gross_weight|default:'' }}"
+                                        data-rate-per-kg="{{ obj.rate_per_kg|default:'' }}"
                                         data-handling-fees="{{ obj.handling_fees|default:'0' }}"
                                         data-size-per-carton="{{ obj.size_per_carton|default:'' }}"
                                         data-air-total="{{ obj.air_cargo_total|default:'' }}"
@@ -64,7 +64,7 @@
                                 <div class="col-md-6"><strong>Airline:</strong> <span data-air-detail="airline">-</span></div>
                                 <div class="col-md-6"><strong>CTNs:</strong> <span data-air-detail="ctns">-</span></div>
                                 <div class="col-md-6"><strong>Gross Weight:</strong> <span data-air-detail="gross-weight">-</span></div>
-                                <div class="col-md-6"><strong>Rate per Carton:</strong> <span data-air-detail="rate-per-carton">-</span></div>
+                                <div class="col-md-6"><strong>Rate per Kg:</strong> <span data-air-detail="rate-per-kg">-</span></div>
                                 <div class="col-md-6"><strong>Handling Fees:</strong> <span data-air-detail="handling-fees">-</span></div>
                                 <div class="col-md-6"><strong>Size per Carton:</strong> <span data-air-detail="size-per-carton">-</span></div>
                                 <div class="col-12"><strong>Description:</strong> <span data-air-detail="description">-</span></div>
@@ -218,7 +218,7 @@
                 setAirDetail('airline', selected.dataset.airline);
                 setAirDetail('ctns', selected.dataset.ctns);
                 setAirDetail('gross-weight', selected.dataset.grossWeight, selected.dataset.grossWeight ? ' kg' : '');
-                setAirDetail('rate-per-carton', selected.dataset.ratePerCarton ? money(selected.dataset.ratePerCarton) : '');
+                setAirDetail('rate-per-kg', selected.dataset.ratePerKg ? money(selected.dataset.ratePerKg) : '');
                 setAirDetail('handling-fees', selected.dataset.handlingFees ? money(selected.dataset.handlingFees) : '');
                 setAirDetail('size-per-carton', selected.dataset.sizePerCarton);
                 setAirDetail('air-total', selected.dataset.airTotal ? money(selected.dataset.airTotal) : '');
