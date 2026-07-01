@@ -16,7 +16,7 @@
         <div class="card-body">
             <form method="get" class="form-inline">
                 <div class="input-group w-100">
-                    <input type="text" name="search" class="form-control" placeholder="Search by Container #, Client, Cargo Type, Origin, or Destination" value="{{ search }}">
+                    <input type="text" name="search" class="form-control" placeholder="Search by Container #, Item #, Client, Cargo Type, Origin, or Destination" value="{{ search }}">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> Search
                     </button>
@@ -41,10 +41,11 @@
                         <th>Date</th>
                         <th>Origin</th>
                         <th>Destination</th>
-                        <th>Container</th>
-                        <th>Container Size</th>
-                        <th>CBM (LCL)</th>
+                        <th>Container / Item</th>
+                        <th>Size / Airline</th>
+                        <th>CBM / Gross Weight</th>
                         <th>CTNs</th>
+                        <th>Air Total</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -55,18 +56,39 @@
                         <td>{{ loading.get_cargo_type_display|default:'-' }}</td>
                         <td>{{ loading.client.name }}</td>
                         <td>{{ loading.loading_date|date:"Y-m-d" }}</td>
-                        <td>{{ loading.origin }}</td>
+                        <td>{{ loading.origin|default:'-' }}</td>
                         <td>{{ loading.destination }}</td>
-                        <td>{{ loading.container_number|default:'-' }}</td>
-                        <td>{{ loading.get_container_size_display|default:'-' }}</td>
                         <td>
-                            {% if loading.flow_type == 'lcl' and loading.weight %}
-                                {{ loading.weight }}
+                            {% if loading.cargo_type == 'air_cargo' %}
+                                {{ loading.item_number|default:'-' }}
+                            {% else %}
+                                {{ loading.container_number|default:'-' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loading.cargo_type == 'air_cargo' %}
+                                {% if loading.airline %}{{ loading.airline }}{% else %}{{ loading.size_per_carton|default:'-' }}{% endif %}
+                            {% else %}
+                                {{ loading.get_container_size_display|default:'-' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loading.cargo_type == 'air_cargo' and loading.weight %}
+                                {{ loading.weight }} kg
+                            {% elif loading.flow_type == 'lcl' and loading.weight %}
+                                {{ loading.weight }} CBM
                             {% else %}
                                 -
                             {% endif %}
                         </td>
                         <td>{{ loading.ctns|default:'-' }}</td>
+                        <td>
+                            {% if loading.cargo_type == 'air_cargo' and loading.air_cargo_total %}
+                                ${{ loading.air_cargo_total|floatformat:2 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                         <td>
                             <a href="{% url 'loading_detail' loading.id %}" class="btn btn-sm btn-info">
                                 <i class="bi bi-eye"></i>
@@ -83,7 +105,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="text-center text-muted py-4">No cargo found</td>
+                        <td colspan="12" class="text-center text-muted py-4">No cargo found</td>
                     </tr>
                     {% endfor %}
                 </tbody>

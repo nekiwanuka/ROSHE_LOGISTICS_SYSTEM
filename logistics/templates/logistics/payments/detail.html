@@ -8,7 +8,14 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h2 class="mb-0">Payment #{% if payment.invoice_number %}{{ payment.invoice_number }}{% else %}Draft{% endif %}</h2>
-            <small class="text-muted">Container #: {{ payment.loading.container_number|default:'-' }} &middot; Client: {{ payment.loading.client.name }}</small>
+            <small class="text-muted">
+                {% if payment.loading.cargo_type == 'air_cargo' %}
+                    Item #: {{ payment.loading.item_number|default:'-' }}
+                {% else %}
+                    Container #: {{ payment.loading.container_number|default:'-' }}
+                {% endif %}
+                &middot; Client: {{ payment.loading.client.name }}
+            </small>
         </div>
         <div class="btn-group">
             {% url 'payment_invoice' payment.pk as invoice_path %}
@@ -122,15 +129,28 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <h5 class="card-title">Shipment Snapshot</h5>
+                    <p class="mb-1">Cargo Type: {{ payment.loading.get_cargo_type_display|default:'-' }}</p>
+                    {% if payment.loading.cargo_type == 'air_cargo' %}
+                    <p class="mb-1">Item #: {{ payment.loading.item_number|default:'-' }}</p>
+                    <p class="mb-1">Description: {{ payment.loading.item_description|default:'-' }}</p>
+                    <p class="mb-1">Destination: {{ payment.loading.destination|default:'-' }}</p>
+                    <p class="mb-1">Origin: {{ payment.loading.origin|default:'-' }}</p>
+                    <p class="mb-1">Airline: {{ payment.loading.airline|default:'-' }}</p>
+                    <p class="mb-1">CTNs: {{ payment.loading.ctns|default:'-' }}</p>
+                    <p class="mb-1">Gross Weight: {% if payment.loading.weight %}{{ payment.loading.weight }} kg{% else %}-{% endif %}</p>
+                    <p class="mb-1">Rate per Carton: {% if payment.loading.rate_per_carton %}${{ payment.loading.rate_per_carton|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
+                    <p class="mb-1">Handling Fees: {% if payment.loading.handling_fees %}${{ payment.loading.handling_fees|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
+                    <p class="mb-1">Size per Carton: {{ payment.loading.size_per_carton|default:'-' }}</p>
+                    {% else %}
                     <p class="mb-1">Route: {{ payment.loading.origin }} → {{ payment.loading.destination }}</p>
                     <p class="mb-1">Flow: {{ payment.loading.get_flow_type_display }}</p>
-                    <p class="mb-1">Cargo Type: {{ payment.loading.get_cargo_type_display|default:'-' }}</p>
                     <p class="mb-1">Container #: {{ payment.loading.container_number|default:'-' }}</p>
                     {% if payment.loading.flow_type == 'lcl' %}
                     <p class="mb-1">CBM: {{ payment.loading.weight }} CBM</p>
                     {% endif %}
                     <p class="mb-1">CTNs: {{ payment.loading.ctns|default:'-' }}</p>
                     <p class="mb-1">Container Size: {{ payment.loading.get_container_size_display|default:'-' }}</p>
+                    {% endif %}
                     <p class="mb-1">Loading Date: {{ payment.loading.loading_date|date:"M d, Y" }}</p>
                     <p class="mb-0">Created By: {{ payment.created_by.username }}</p>
                 </div>

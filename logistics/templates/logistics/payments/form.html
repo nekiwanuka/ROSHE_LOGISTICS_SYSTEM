@@ -22,21 +22,54 @@
                                 class="form-control"
                                 data-filterable="1"
                                 data-filter-min="1"
-                                data-filter-placeholder="Search cargo / client / container (type to filter)"
+                                data-filter-placeholder="Search cargo / client / container / item (type to filter)"
                                 required
                             >
                                 <option value="">---------</option>
                                 {% for obj in form.loading.field.queryset %}
                                     <option
                                         value="{{ obj.pk }}"
+                                        data-cargo-type="{{ obj.cargo_type|default:'' }}"
                                         data-flow-type="{{ obj.flow_type|default:'' }}"
+                                        data-item-number="{{ obj.item_number|default:'' }}"
+                                        data-description="{{ obj.item_description|default:'' }}"
+                                        data-origin="{{ obj.origin|default:'' }}"
+                                        data-destination="{{ obj.destination|default:'' }}"
+                                        data-airline="{{ obj.airline|default:'' }}"
+                                        data-ctns="{{ obj.ctns|default:'' }}"
+                                        data-gross-weight="{{ obj.weight|default:'' }}"
+                                        data-rate-per-carton="{{ obj.rate_per_carton|default:'' }}"
+                                        data-handling-fees="{{ obj.handling_fees|default:'0' }}"
+                                        data-size-per-carton="{{ obj.size_per_carton|default:'' }}"
+                                        data-air-total="{{ obj.air_cargo_total|default:'' }}"
                                         {% if form.loading.value|stringformat:"s" == obj.pk|stringformat:"s" %}selected{% endif %}
                                     >
-                                        {{ obj.container_number }} - {{ obj.client.client_id }} - {{ obj.client.name }}
+                                        {% if obj.cargo_type == 'air_cargo' %}
+                                            {{ obj.item_number|default:'Air Cargo' }} - {{ obj.client.client_id }} - {{ obj.client.name }}
+                                        {% else %}
+                                            {{ obj.container_number }} - {{ obj.client.client_id }} - {{ obj.client.name }}
+                                        {% endif %}
                                     </option>
                                 {% endfor %}
                             </select>
                             {% if form.loading.errors %}<div class="text-danger">{{ form.loading.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="alert alert-info" id="air-cargo-details" style="display: none;">
+                            <div class="fw-semibold mb-2">Air Cargo Quotation Details</div>
+                            <div class="row small g-2">
+                                <div class="col-md-6"><strong>Item #:</strong> <span data-air-detail="item-number">-</span></div>
+                                <div class="col-md-6"><strong>Destination:</strong> <span data-air-detail="destination">-</span></div>
+                                <div class="col-md-6"><strong>Origin:</strong> <span data-air-detail="origin">-</span></div>
+                                <div class="col-md-6"><strong>Airline:</strong> <span data-air-detail="airline">-</span></div>
+                                <div class="col-md-6"><strong>CTNs:</strong> <span data-air-detail="ctns">-</span></div>
+                                <div class="col-md-6"><strong>Gross Weight:</strong> <span data-air-detail="gross-weight">-</span></div>
+                                <div class="col-md-6"><strong>Rate per Carton:</strong> <span data-air-detail="rate-per-carton">-</span></div>
+                                <div class="col-md-6"><strong>Handling Fees:</strong> <span data-air-detail="handling-fees">-</span></div>
+                                <div class="col-md-6"><strong>Size per Carton:</strong> <span data-air-detail="size-per-carton">-</span></div>
+                                <div class="col-12"><strong>Description:</strong> <span data-air-detail="description">-</span></div>
+                                <div class="col-12 fs-6"><strong>Calculated Air Cargo Total:</strong> <span data-air-detail="air-total">-</span></div>
+                            </div>
                         </div>
 
                         <div class="row">
@@ -58,7 +91,7 @@
                             </div>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3" id="document-handling-group">
                             <label for="{{ form.document_handling_fee.id_for_label }}" class="form-label">Document &amp; Handling Fees</label>
                             {{ form.document_handling_fee }}
                             {% if form.document_handling_fee.errors %}<div class="text-danger">{{ form.document_handling_fee.errors }}</div>{% endif %}
@@ -68,9 +101,9 @@
                         <div class="mb-3">
                             <label class="form-label">Amount Charged (auto)</label>
                             {% if payment %}
-                            <input type="text" class="form-control" value="${{ payment.amount_charged|floatformat:2 }}" readonly>
+                            <input type="text" class="form-control" id="amount-charged-preview" value="${{ payment.amount_charged|floatformat:2 }}" readonly>
                             {% else %}
-                            <input type="text" class="form-control" value="Will calculate after saving" readonly>
+                            <input type="text" class="form-control" id="amount-charged-preview" value="Will calculate after saving" readonly>
                             {% endif %}
                             <small class="text-muted">Calculated from the cargo flow + rate.</small>
                         </div>
@@ -133,9 +166,29 @@
         const loadingSelect = document.getElementById('{{ form.loading.id_for_label }}');
         const cbmGroup = document.getElementById('rate-per-cbm-group');
         const containerGroup = document.getElementById('rate-per-container-group');
+        const documentHandlingGroup = document.getElementById('document-handling-group');
+        const airCargoDetails = document.getElementById('air-cargo-details');
+        const amountPreview = document.getElementById('amount-charged-preview');
 
         const cbmInput = document.getElementById('{{ form.rate_per_cbm.id_for_label }}');
         const containerInput = document.getElementById('{{ form.rate_per_container.id_for_label }}');
+        const documentHandlingInput = document.getElementById('{{ form.document_handling_fee.id_for_label }}');
+
+        function parseMoney(value) {
+            const parsed = parseFloat(String(value || '').replace(/,/g, ''));
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function money(value) {
+            const parsed = parseMoney(value);
+            return '$' + parsed.toFixed(2);
+        }
+
+        function setAirDetail(name, value, suffix) {
+            const target = document.querySelector('[data-air-detail="' + name + '"]');
+            if (!target) return;
+            target.textContent = value ? value + (suffix || '') : '-';
+        }
 
         function setGroupEnabled(groupEl, inputEl, enabled) {
             if (!groupEl || !inputEl) return;
@@ -150,20 +203,47 @@
         function updateRateFields() {
             if (!loadingSelect) return;
             const selected = loadingSelect.options[loadingSelect.selectedIndex];
+            const cargoType = (selected && selected.dataset && selected.dataset.cargoType) ? selected.dataset.cargoType : '';
             const flow = (selected && selected.dataset && selected.dataset.flowType) ? selected.dataset.flowType : '';
+
+            if (cargoType === 'air_cargo') {
+                setGroupEnabled(cbmGroup, cbmInput, false);
+                setGroupEnabled(containerGroup, containerInput, false);
+                setGroupEnabled(documentHandlingGroup, documentHandlingInput, false);
+                if (airCargoDetails) airCargoDetails.style.display = '';
+                setAirDetail('item-number', selected.dataset.itemNumber);
+                setAirDetail('description', selected.dataset.description);
+                setAirDetail('origin', selected.dataset.origin);
+                setAirDetail('destination', selected.dataset.destination);
+                setAirDetail('airline', selected.dataset.airline);
+                setAirDetail('ctns', selected.dataset.ctns);
+                setAirDetail('gross-weight', selected.dataset.grossWeight, selected.dataset.grossWeight ? ' kg' : '');
+                setAirDetail('rate-per-carton', selected.dataset.ratePerCarton ? money(selected.dataset.ratePerCarton) : '');
+                setAirDetail('handling-fees', selected.dataset.handlingFees ? money(selected.dataset.handlingFees) : '');
+                setAirDetail('size-per-carton', selected.dataset.sizePerCarton);
+                setAirDetail('air-total', selected.dataset.airTotal ? money(selected.dataset.airTotal) : '');
+                if (amountPreview) amountPreview.value = selected.dataset.airTotal ? money(selected.dataset.airTotal) : 'Will calculate after saving';
+                return;
+            }
+
+            if (airCargoDetails) airCargoDetails.style.display = 'none';
+            setGroupEnabled(documentHandlingGroup, documentHandlingInput, true);
 
             if (flow === 'lcl') {
                 setGroupEnabled(cbmGroup, cbmInput, true);
                 setGroupEnabled(containerGroup, containerInput, false);
+                if (amountPreview && !{{ payment|yesno:"true,false" }}) amountPreview.value = 'Will calculate after saving';
             } else if (flow === 'fcl') {
                 setGroupEnabled(cbmGroup, cbmInput, false);
                 setGroupEnabled(containerGroup, containerInput, true);
+                if (amountPreview && !{{ payment|yesno:"true,false" }}) amountPreview.value = 'Will calculate after saving';
             } else {
                 // No cargo selected yet (or legacy data) -> show both, no browser-required.
                 if (cbmGroup) cbmGroup.style.display = '';
                 if (containerGroup) containerGroup.style.display = '';
                 if (cbmInput) { cbmInput.disabled = false; cbmInput.required = false; }
                 if (containerInput) { containerInput.disabled = false; containerInput.required = false; }
+                if (documentHandlingInput) { documentHandlingInput.disabled = false; documentHandlingInput.required = false; }
             }
         }
 

@@ -77,7 +77,7 @@
                                 <span class="section-eyebrow">01 · Shipment Overview</span>
                             </div>
                             <div class="row g-4">
-                                <div class="col-md-6">
+                                <div class="col-md-6" id="field-flow-type">
                                     <label for="{{ form.flow_type.id_for_label }}" class="form-label">Business Flow *</label>
                                     {{ form.flow_type }}
                                     {% if form.flow_type.errors %}<div class="text-danger">{{ form.flow_type.errors }}</div>{% endif %}
@@ -98,11 +98,11 @@
                                     {{ form.loading_date }}
                                     {% if form.loading_date.errors %}<div class="text-danger">{{ form.loading_date.errors }}</div>{% endif %}
                                 </div>
-                                <div class="col-md-6" id="field-cbm">
-                                    <label for="{{ form.weight.id_for_label }}" class="form-label">CBM</label>
+                                <div class="col-md-6" id="field-weight">
+                                    <label for="{{ form.weight.id_for_label }}" class="form-label" id="weight-label">CBM</label>
                                     {{ form.weight }}
                                     {% if form.weight.errors %}<div class="text-danger">{{ form.weight.errors }}</div>{% endif %}
-                                    <p class="field-hint">Required for LCL shipments.</p>
+                                    <p class="field-hint" id="weight-hint">Required for LCL shipments.</p>
                                 </div>
                             </div>
                         </div>
@@ -112,20 +112,20 @@
                                 <span class="section-eyebrow">02 · Equipment & Route</span>
                             </div>
                             <div class="row g-4">
-                                <div class="col-md-6">
+                                <div class="col-md-6" id="field-container-number">
                                     <label for="{{ form.container_number.id_for_label }}" class="form-label">Container Number</label>
                                     {{ form.container_number }}
                                     {% if form.container_number.errors %}<div class="text-danger">{{ form.container_number.errors }}</div>{% endif %}
                                     <p class="field-hint">Required when cargo type is Freight Cargo.</p>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6" id="field-container-size">
                                     <label for="{{ form.container_size.id_for_label }}" class="form-label">Container Size</label>
                                     {{ form.container_size }}
                                     {% if form.container_size.errors %}<div class="text-danger">{{ form.container_size.errors }}</div>{% endif %}
                                     <p class="field-hint">Optional — helps downstream billing and container tracking.</p>
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="{{ form.origin.id_for_label }}" class="form-label">Origin *</label>
+                                    <label for="{{ form.origin.id_for_label }}" class="form-label" id="origin-label">Origin *</label>
                                     {{ form.origin }}
                                     {% if form.origin.errors %}<div class="text-danger">{{ form.origin.errors }}</div>{% endif %}
                                 </div>
@@ -143,16 +143,49 @@
                                 <p class="section-subtitle">Specify commodity details, packaging notes, or special handling instructions.</p>
                             </div>
                             <div class="row g-4">
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.item_number.id_for_label }}" class="form-label">Item Number *</label>
+                                    {{ form.item_number }}
+                                    {% if form.item_number.errors %}<div class="text-danger">{{ form.item_number.errors }}</div>{% endif %}
+                                </div>
                                 <div class="col-12">
-                                    <label for="{{ form.item_description.id_for_label }}" class="form-label">Item Description</label>
+                                    <label for="{{ form.item_description.id_for_label }}" class="form-label" id="description-label">Item Description</label>
                                     {{ form.item_description }}
                                     {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="{{ form.ctns.id_for_label }}" class="form-label">CTNs</label>
+                                    <label for="{{ form.ctns.id_for_label }}" class="form-label" id="ctns-label">CTNs</label>
                                     {{ form.ctns }}
                                     {% if form.ctns.errors %}<div class="text-danger">{{ form.ctns.errors }}</div>{% endif %}
-                                    <p class="field-hint">Cartons count.</p>
+                                    <p class="field-hint" id="ctns-hint">Cartons count.</p>
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.rate_per_carton.id_for_label }}" class="form-label">Rate per Carton *</label>
+                                    {{ form.rate_per_carton }}
+                                    {% if form.rate_per_carton.errors %}<div class="text-danger">{{ form.rate_per_carton.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.handling_fees.id_for_label }}" class="form-label">Handling Fees</label>
+                                    {{ form.handling_fees }}
+                                    {% if form.handling_fees.errors %}<div class="text-danger">{{ form.handling_fees.errors }}</div>{% endif %}
+                                    <p class="field-hint">Optional.</p>
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.airline.id_for_label }}" class="form-label">Airline</label>
+                                    {{ form.airline }}
+                                    {% if form.airline.errors %}<div class="text-danger">{{ form.airline.errors }}</div>{% endif %}
+                                    <p class="field-hint">Optional.</p>
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.size_per_carton.id_for_label }}" class="form-label">Size per Carton</label>
+                                    {{ form.size_per_carton }}
+                                    {% if form.size_per_carton.errors %}<div class="text-danger">{{ form.size_per_carton.errors }}</div>{% endif %}
+                                    <p class="field-hint">Optional.</p>
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label class="form-label">Air Cargo Total</label>
+                                    <input type="text" id="air-cargo-total" class="form-control" value="$0.00" readonly>
+                                    <p class="field-hint">CTNs × rate per carton + handling fees.</p>
                                 </div>
                             </div>
                         </div>
@@ -176,23 +209,108 @@
 {% block extra_js %}
 <script>
     (function() {
+        function parseMoney(value) {
+            var parsed = parseFloat(String(value || '').replace(/,/g, ''));
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function setFieldEnabled(input, enabled) {
+            if (!input) return;
+            input.disabled = !enabled;
+        }
+
+        function setRequired(input, required) {
+            if (!input) return;
+            input.required = required;
+        }
+
+        function updateAirCargoTotal() {
+            var total = document.getElementById('air-cargo-total');
+            if (!total) return;
+            var ctns = parseMoney(document.getElementById('id_ctns') && document.getElementById('id_ctns').value);
+            var rate = parseMoney(document.getElementById('id_rate_per_carton') && document.getElementById('id_rate_per_carton').value);
+            var fees = parseMoney(document.getElementById('id_handling_fees') && document.getElementById('id_handling_fees').value);
+            total.value = '$' + ((ctns * rate) + fees).toFixed(2);
+        }
+
         function toggleLoadingFields() {
+            var cargo = document.getElementById('id_cargo_type');
             var flow = document.getElementById('id_flow_type');
-            if (!flow) return;
+            if (!cargo || !flow) return;
 
-            var cbmField = document.getElementById('field-cbm');
-            if (!cbmField) return;
+            var isAirCargo = cargo.value === 'air_cargo';
+            var weightField = document.getElementById('field-weight');
+            var weightLabel = document.getElementById('weight-label');
+            var weightHint = document.getElementById('weight-hint');
+            var originLabel = document.getElementById('origin-label');
+            var descriptionLabel = document.getElementById('description-label');
+            var ctnsLabel = document.getElementById('ctns-label');
+            var ctnsHint = document.getElementById('ctns-hint');
 
-            if (flow.value === 'lcl') {
-                cbmField.style.display = '';
-            } else {
-                cbmField.style.display = 'none';
+            var flowField = document.getElementById('field-flow-type');
+            var containerNumberField = document.getElementById('field-container-number');
+            var containerSizeField = document.getElementById('field-container-size');
+            var airFields = document.querySelectorAll('.air-cargo-field');
+
+            var weightInput = document.getElementById('id_weight');
+            var originInput = document.getElementById('id_origin');
+            var containerInput = document.getElementById('id_container_number');
+            var containerSizeInput = document.getElementById('id_container_size');
+            var itemNumberInput = document.getElementById('id_item_number');
+            var descriptionInput = document.getElementById('id_item_description');
+            var ctnsInput = document.getElementById('id_ctns');
+            var rateInput = document.getElementById('id_rate_per_carton');
+
+            if (isAirCargo) {
+                flow.value = 'lcl';
             }
+
+            if (flowField) flowField.style.display = isAirCargo ? 'none' : '';
+            if (containerNumberField) containerNumberField.style.display = isAirCargo ? 'none' : '';
+            if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
+            airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
+
+            setFieldEnabled(containerInput, !isAirCargo);
+            setFieldEnabled(containerSizeInput, !isAirCargo);
+            setFieldEnabled(itemNumberInput, isAirCargo);
+            setFieldEnabled(rateInput, isAirCargo);
+
+            setRequired(containerInput, !isAirCargo);
+            setRequired(originInput, !isAirCargo);
+            setRequired(itemNumberInput, isAirCargo);
+            setRequired(descriptionInput, isAirCargo);
+            setRequired(ctnsInput, isAirCargo);
+            setRequired(weightInput, isAirCargo || flow.value === 'lcl');
+            setRequired(rateInput, isAirCargo);
+
+            if (originLabel) originLabel.textContent = isAirCargo ? 'Origin (optional)' : 'Origin *';
+            if (descriptionLabel) descriptionLabel.textContent = isAirCargo ? 'Description of the Items *' : 'Item Description';
+            if (ctnsLabel) ctnsLabel.textContent = isAirCargo ? 'Number of CTNs/Cartons *' : 'CTNs';
+            if (ctnsHint) ctnsHint.textContent = isAirCargo ? 'Total cartons for this item.' : 'Cartons count.';
+
+            if (isAirCargo) {
+                if (weightField) weightField.style.display = '';
+                if (weightLabel) weightLabel.textContent = 'Gross Weight (kg) *';
+                if (weightHint) weightHint.textContent = 'Total kilograms of all cartons for this item.';
+            } else if (flow.value === 'lcl') {
+                if (weightField) weightField.style.display = '';
+                if (weightLabel) weightLabel.textContent = 'CBM';
+                if (weightHint) weightHint.textContent = 'Required for LCL shipments.';
+            } else {
+                if (weightField) weightField.style.display = 'none';
+            }
+
+            updateAirCargoTotal();
         }
 
         document.addEventListener('change', function(e) {
-            if (e.target && e.target.id === 'id_flow_type') {
+            if (e.target && (e.target.id === 'id_flow_type' || e.target.id === 'id_cargo_type')) {
                 toggleLoadingFields();
+            }
+        });
+        document.addEventListener('input', function(e) {
+            if (e.target && ['id_ctns', 'id_rate_per_carton', 'id_handling_fees'].indexOf(e.target.id) !== -1) {
+                updateAirCargoTotal();
             }
         });
         document.addEventListener('DOMContentLoaded', toggleLoadingFields);

@@ -86,7 +86,7 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="text-nowrap">Container #</th>
+                        <th class="text-nowrap">Container / Item #</th>
                         <th class="text-nowrap">Flow</th>
                         <th>Client</th>
                         <th class="text-end text-nowrap">Charged</th>
@@ -102,10 +102,14 @@
                     <tr>
                         <td class="text-nowrap">
                             <a class="link-strong" href="{% url 'loading_detail' payment.loading.id %}">
-                                {{ payment.loading.container_number }}
+                                {% if payment.loading.cargo_type == 'air_cargo' %}
+                                    {{ payment.loading.item_number|default:'Air Cargo' }}
+                                {% else %}
+                                    {{ payment.loading.container_number }}
+                                {% endif %}
                             </a>
                         </td>
-                        <td>{{ payment.loading.get_flow_type_display }}</td>
+                        <td>{% if payment.loading.cargo_type == 'air_cargo' %}Air Cargo{% else %}{{ payment.loading.get_flow_type_display }}{% endif %}</td>
                         <td>{{ payment.loading.client.name }}</td>
                         <td class="text-end amount">${{ payment.amount_charged|floatformat:2 }}</td>
                         <td class="text-end amount">${{ payment.amount_paid|floatformat:2 }}</td>
