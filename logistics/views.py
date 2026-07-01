@@ -8,6 +8,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from io import BytesIO
 from urllib.parse import quote
+from xml.sax.saxutils import escape
 
 from django.contrib import messages
 from django.core.management import call_command
@@ -30,6 +31,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
@@ -1860,6 +1862,20 @@ def payment_invoice(request, pk):
     small.fontSize = 8
     small.leading = 10
 
+    table_text = normal.clone("InvoiceTableText")
+    table_text.fontSize = 8.5
+    table_text.leading = 10.5
+    table_text.wordWrap = "CJK"
+
+    table_number = table_text.clone("InvoiceTableNumber")
+    table_number.alignment = TA_RIGHT
+
+    def table_cell(value, style=table_text):
+        return Paragraph(escape(str(value)), style)
+
+    def table_markup(markup, style=table_text):
+        return Paragraph(markup, style)
+
     def draw_header(canvas_obj, doc):
         width, height = A4
         left = doc.leftMargin
@@ -2056,33 +2072,49 @@ def payment_invoice(request, pk):
     )
 
     route = f"{loading.origin or '—'} to {loading.destination or '—'}"
-    freight_item = (
-        f"Air Cargo Charges ({loading.item_description or loading.item_number or 'Items'})"
-        if is_air_cargo
-        else f"Shipment Charges ({route})"
-    )
+    if is_air_cargo:
+        air_summary = " | ".join(
+            [
+                f"Item #: {loading.item_number or '—'}",
+                f"CTNs: {loading.ctns if loading.ctns is not None else '—'}",
+                f"Destination: {loading.destination or '—'}",
+            ]
+        )
+        freight_item_cell = table_markup(
+            "<b>Air Cargo Freight Charges</b><br/>"
+            f'<font size="8">{escape(air_summary)}</font>'
+        )
+    else:
+        freight_item_cell = table_cell(f"Shipment Charges ({route})")
 
-    qty_header = "Kg" if is_air_cargo else ("CBM" if flow == "lcl" else "Qty")
+    qty_header = "Weight (kg)" if is_air_cargo else ("CBM" if flow == "lcl" else "Qty")
     items = [
         ["Items", qty_header, "Rate", "Amount"],
-        [freight_item, qty_label, rate_label, freight_amount_label],
+        [
+            freight_item_cell,
+            table_cell(qty_label, table_number),
+            table_cell(rate_label, table_number),
+            table_cell(freight_amount_label, table_number),
+        ],
     ]
     if fee and fee > 0:
         items.append(
             [
-                "Handling Fees" if is_air_cargo else "Document & Handling Fees",
+                table_cell(
+                    "Handling Fees" if is_air_cargo else "Document & Handling Fees"
+                ),
                 "",
                 "",
-                f"{fee:,.2f}",
+                table_cell(f"{fee:,.2f}", table_number),
             ]
         )
 
     items_table = Table(
         items,
         colWidths=[
-            doc.width * 0.52,
-            doc.width * 0.16,
-            doc.width * 0.16,
+            doc.width * 0.55,
+            doc.width * 0.15,
+            doc.width * 0.14,
             doc.width * 0.16,
         ],
         hAlign="LEFT",
@@ -2112,9 +2144,9 @@ def payment_invoice(request, pk):
             ["", "", "Amount Due (USD)", f"{amount_due:,.2f}"],
         ],
         colWidths=[
-            doc.width * 0.52,
-            doc.width * 0.16,
-            doc.width * 0.16,
+            doc.width * 0.55,
+            doc.width * 0.15,
+            doc.width * 0.14,
             doc.width * 0.16,
         ],
         hAlign="LEFT",
@@ -2135,7 +2167,11 @@ def payment_invoice(request, pk):
     notes = [
         Paragraph("<b>Notes / Terms</b>", heading),
         Paragraph(
-            "1.Freight Charges are to be paid when the container arrives at Mombasa port.",
+            (
+                "1. Air Cargo charges are payable before release unless otherwise agreed."
+                if is_air_cargo
+                else "1. Freight charges are to be paid when the container arrives at Mombasa port."
+            ),
             small,
         ),
         Paragraph("2. A Surcharge of 5% will be charged on late payment", small),
