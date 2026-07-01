@@ -1959,7 +1959,6 @@ def payment_invoice(request, pk):
 
     invoice_meta_lines = [
         f"<b>{'Air Cargo Invoice No' if is_air_cargo else 'Shipment Invoice No'}:</b> {payment.invoice_number}",
-        f"<b>{'Item Number' if is_air_cargo else 'Container Number'}:</b> {(loading.item_number if is_air_cargo else loading.container_number) or '—'}",
         f"<b>Invoice Date:</b> {issue_date.strftime('%Y-%m-%d')}",
         f"<b>Payment Due:</b> {due_date.strftime('%Y-%m-%d')}",
         f"<b>Amount Due (USD):</b> ${amount_due:,.2f}",
@@ -1967,51 +1966,104 @@ def payment_invoice(request, pk):
     invoice_meta = Paragraph("<br/>".join(invoice_meta_lines), normal)
 
     flow = getattr(loading, "flow_type", None)
+
+    def display_date(value):
+        return value.strftime("%Y-%m-%d") if value else "—"
+
     if is_air_cargo:
-        shipment_lines = [
-            "<b>AIR CARGO SHIPMENT</b>",
-            f"Client: {client.name}",
-            f"Item Number: {loading.item_number or '—'}",
-            f"Description: {loading.item_description or '—'}",
-            f"CTNs: {loading.ctns if loading.ctns is not None else '—'}",
-            (
-                f"Gross Weight: {loading.gross_weight:.2f} kg"
-                if loading.gross_weight is not None
-                else "Gross Weight: —"
-            ),
-            (
-                f"Rate per Kg: ${loading.rate_per_kg:,.2f}"
-                if loading.rate_per_kg is not None
-                else "Rate per Kg: —"
-            ),
-            f"Handling Fees: ${fee:,.2f}",
-            (
-                f"Air Cargo Total: ${loading.air_cargo_total:,.2f}"
-                if loading.air_cargo_total is not None
-                else "Air Cargo Total: —"
-            ),
-            f"Destination: {loading.destination or '—'}",
-            f"Origin: {loading.origin or '—'}",
-            f"Airline: {loading.airline or '—'}",
-            f"Size per Carton: {loading.size_per_carton or '—'}",
-            f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
+        cargo_detail_rows = [
+            ["AIR CARGO DETAILS", "", "", ""],
+            [
+                "Item Number",
+                loading.item_number or "—",
+                "CTNs",
+                loading.ctns if loading.ctns is not None else "—",
+            ],
+            [
+                "Description",
+                table_cell(loading.item_description or "—"),
+                "",
+                "",
+            ],
+            [
+                "Destination",
+                loading.destination or "—",
+                "Origin",
+                loading.origin or "—",
+            ],
+            [
+                "Airline",
+                loading.airline or "—",
+                "Size per Carton",
+                loading.size_per_carton or "—",
+            ],
+            ["Loading Date", display_date(loading.loading_date), "", ""],
+        ]
+        cargo_detail_spans = [
+            ("SPAN", (0, 0), (-1, 0)),
+            ("SPAN", (1, 2), (-1, 2)),
+            ("SPAN", (1, 5), (-1, 5)),
         ]
     else:
-        shipment_lines = [
-            "<b>SHIPMENT</b>",
-            f"Route: {loading.origin} to {loading.destination}",
-            f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
+        cargo_detail_rows = [
+            ["SHIPMENT DETAILS", "", "", ""],
+            [
+                "Route",
+                f"{loading.origin or '—'} to {loading.destination or '—'}",
+                "Flow",
+                loading.get_flow_type_display() if flow else "—",
+            ],
+            [
+                "Container Number",
+                loading.container_number or "—",
+                "Container Size",
+                loading.get_container_size_display() if loading.container_size else "—",
+            ],
+            [
+                "Loading Date",
+                display_date(loading.loading_date),
+                "CBM",
+                (
+                    f"{loading.weight:.2f}"
+                    if flow == "lcl" and loading.weight is not None
+                    else "—"
+                ),
+            ],
         ]
+        cargo_detail_spans = [("SPAN", (0, 0), (-1, 0))]
 
-    if not is_air_cargo and flow == "fcl":
-        if loading.container_size:
-            shipment_lines.append(
-                f"Container Size: {loading.get_container_size_display()}"
-            )
-    elif not is_air_cargo:
-        cbm_value = f"{loading.weight:.2f} CBM" if loading.weight is not None else "—"
-        shipment_lines.append(f"CBM: {cbm_value}")
-    shipment_details = Paragraph("<br/>".join(shipment_lines), normal)
+    cargo_details_table = Table(
+        cargo_detail_rows,
+        colWidths=[
+            doc.width * 0.16,
+            doc.width * 0.34,
+            doc.width * 0.16,
+            doc.width * 0.34,
+        ],
+        hAlign="LEFT",
+    )
+    cargo_details_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), primary),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#F7F7F7")),
+                ("BACKGROUND", (2, 1), (2, -1), colors.HexColor("#F7F7F7")),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (2, 1), (2, -1), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
+                ("INNERGRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#444444")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                *cargo_detail_spans,
+            ]
+        )
+    )
 
     info_table = Table(
         [[bill_to, invoice_meta]],
@@ -2073,26 +2125,19 @@ def payment_invoice(request, pk):
 
     route = f"{loading.origin or '—'} to {loading.destination or '—'}"
     if is_air_cargo:
-        air_summary = " | ".join(
-            [
-                f"Item #: {loading.item_number or '—'}",
-                f"CTNs: {loading.ctns if loading.ctns is not None else '—'}",
-                f"Destination: {loading.destination or '—'}",
-            ]
-        )
-        freight_item_cell = table_markup(
-            "<b>Air Cargo Freight Charges</b><br/>"
-            f'<font size="8">{escape(air_summary)}</font>'
-        )
+        freight_item_cell = table_markup("<b>Air Cargo Freight Charges</b>")
+        unit_label = "kg"
     else:
         freight_item_cell = table_cell(f"Shipment Charges ({route})")
+        unit_label = "CBM" if flow == "lcl" else "Container"
 
-    qty_header = "Weight (kg)" if is_air_cargo else ("CBM" if flow == "lcl" else "Qty")
+    qty_header = "Weight" if is_air_cargo else ("Quantity" if flow == "fcl" else "CBM")
     items = [
-        ["Items", qty_header, "Rate", "Amount"],
+        ["Description", qty_header, "Unit", "Rate", "Amount"],
         [
             freight_item_cell,
             table_cell(qty_label, table_number),
+            table_cell(unit_label),
             table_cell(rate_label, table_number),
             table_cell(freight_amount_label, table_number),
         ],
@@ -2105,6 +2150,7 @@ def payment_invoice(request, pk):
                 ),
                 "",
                 "",
+                "",
                 table_cell(f"{fee:,.2f}", table_number),
             ]
         )
@@ -2112,8 +2158,9 @@ def payment_invoice(request, pk):
     items_table = Table(
         items,
         colWidths=[
-            doc.width * 0.55,
-            doc.width * 0.15,
+            doc.width * 0.46,
+            doc.width * 0.14,
+            doc.width * 0.10,
             doc.width * 0.14,
             doc.width * 0.16,
         ],
@@ -2125,7 +2172,8 @@ def payment_invoice(request, pk):
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F2F2F2")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+                ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
                 ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.black),
@@ -2140,12 +2188,13 @@ def payment_invoice(request, pk):
     total_amount = payment.amount_charged
     totals_table = Table(
         [
-            ["", "", "Total", f"{total_amount:,.2f}"],
-            ["", "", "Amount Due (USD)", f"{amount_due:,.2f}"],
+            ["", "", "", "Total", f"{total_amount:,.2f}"],
+            ["", "", "", "Amount Due (USD)", f"{amount_due:,.2f}"],
         ],
         colWidths=[
-            doc.width * 0.55,
-            doc.width * 0.15,
+            doc.width * 0.46,
+            doc.width * 0.14,
+            doc.width * 0.10,
             doc.width * 0.14,
             doc.width * 0.16,
         ],
@@ -2154,10 +2203,10 @@ def payment_invoice(request, pk):
     totals_table.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
-                ("LINEABOVE", (2, 0), (-1, 0), 0.7, colors.black),
-                ("LINEBELOW", (2, -1), (-1, -1), 0.7, colors.black),
+                ("FONTNAME", (3, 0), (3, -1), "Helvetica-Bold"),
+                ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+                ("LINEABOVE", (3, 0), (-1, 0), 0.7, colors.black),
+                ("LINEBELOW", (3, -1), (-1, -1), 0.7, colors.black),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]
@@ -2191,7 +2240,7 @@ def payment_invoice(request, pk):
     story = [
         info_table,
         Spacer(1, 12),
-        shipment_details,
+        cargo_details_table,
         Spacer(1, 10),
         items_table,
         Spacer(1, 8),
