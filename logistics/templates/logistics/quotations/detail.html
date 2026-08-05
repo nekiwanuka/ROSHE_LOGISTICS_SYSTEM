@@ -71,7 +71,6 @@
                     {% endif %}
                     <div><strong>Route:</strong> {{ quote.origin }} → {{ quote.destination }}</div>
                     <div><strong>Expected Loading Date:</strong> {{ quote.loading_date|date:"Y-m-d"|default:"—" }}</div>
-                    <div><strong>Description of Items:</strong> {{ quote.item_description|default:"—" }}</div>
                     {% if quote.cargo_type == 'air_cargo' %}
                         <div><strong>CTNs:</strong> {{ quote.ctns|default:"—" }}</div>
                         <div><strong>Gross Weight:</strong> {{ quote.gross_weight|default:"—" }} KGS</div>
@@ -112,7 +111,6 @@
                                             FREIGHT CHARGE
                                         {% endif %}
                                         <div class="text-muted small">Description of Items: {{ quote.item_description|default:"—" }}</div>
-                                        <div class="text-muted small">{{ quote.origin }} → {{ quote.destination }}</div>
                                     </td>
                                     <td class="text-end">
                                         {% if breakdown.cargo_type == 'air_cargo' %}

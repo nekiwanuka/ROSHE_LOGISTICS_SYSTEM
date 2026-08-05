@@ -2933,10 +2933,6 @@ def quote_pdf(request, quote_id):
         meta_lines.append(f"<b>Item Number:</b> {quote.item_number or '—'}")
         if quote.airline:
             meta_lines.append(f"<b>Airline:</b> {quote.airline}")
-    if quote.item_description:
-        meta_lines.append(
-            f"<b>Description of Items:</b> {escape(quote.item_description)}"
-        )
     meta = Paragraph("<br/>".join(meta_lines), normal)
 
     info_table = Table(
@@ -3014,7 +3010,6 @@ def quote_pdf(request, quote_id):
         description_lines.append(
             f"Description of Items: {escape(quote.item_description)}"
         )
-    description_lines.append(route)
     freight_item = Paragraph("<br/>".join(description_lines), normal)
 
     if is_air_cargo:
