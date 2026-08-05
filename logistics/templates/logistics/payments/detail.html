@@ -158,6 +158,28 @@
                     <p class="mb-1">Route: {{ payment.loading.origin }} → {{ payment.loading.destination }}</p>
                     <p class="mb-1">Flow: {{ payment.loading.get_flow_type_display }}</p>
                     <p class="mb-1">Container #: {{ payment.loading.container_number|default:'-' }}</p>
+                    {% if can_update_container_number %}
+                    <form method="post" class="mt-2 mb-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update_container_number">
+                        <label class="form-label small mb-1" for="container-number-input">Update Container #</label>
+                        <div class="input-group input-group-sm">
+                            <input
+                                type="text"
+                                id="container-number-input"
+                                name="container_number"
+                                class="form-control"
+                                value="{{ payment.loading.container_number|default:'' }}"
+                                placeholder="Enter container number"
+                                style="text-transform: uppercase;"
+                                autocapitalize="characters"
+                                autocomplete="off"
+                                required
+                            >
+                            <button type="submit" class="btn btn-outline-primary">Save</button>
+                        </div>
+                    </form>
+                    {% endif %}
                     {% if payment.loading.flow_type == 'lcl' %}
                     <p class="mb-1">CBM: {{ payment.loading.weight }} CBM</p>
                     {% endif %}

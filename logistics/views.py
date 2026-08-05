@@ -1562,6 +1562,31 @@ def payment_detail(request, pk):
                 f"Marked transaction {transaction.receipt_number} as {transaction.get_verification_status_display().lower()}.",
             )
             return redirect("payment_detail", pk=pk)
+        elif action == "update_container_number":
+            if not has_app_permission(request.user, "edit_delete_documents"):
+                messages.error(request, "Permission denied")
+                return redirect("payment_detail", pk=pk)
+            loading = payment.loading
+            if getattr(loading, "cargo_type", None) == "air_cargo":
+                messages.error(
+                    request, "Air cargo invoices do not use container numbers."
+                )
+                return redirect("payment_detail", pk=pk)
+            container_number = (request.POST.get("container_number") or "").strip()
+            if not container_number:
+                messages.error(request, "Container number is required.")
+                return redirect("payment_detail", pk=pk)
+            loading.container_number = container_number
+            loading.save(update_fields=["container_number", "updated_at"])
+            log_audit(
+                "payment",
+                "update",
+                payment.id,
+                f"Updated invoice container number to {loading.container_number}",
+                request.user,
+            )
+            messages.success(request, "Container number updated successfully.")
+            return redirect("payment_detail", pk=pk)
         else:
             if not has_app_permission(request.user, "create_receipts"):
                 messages.error(request, "Permission denied")
@@ -1612,6 +1637,9 @@ def payment_detail(request, pk):
         "can_verify": has_app_permission(request.user, "approve_verify_receipts"),
         "can_void": has_app_permission(request.user, "void_unvoid_receipts"),
         "can_record_payment": has_app_permission(request.user, "create_receipts"),
+        "can_update_container_number": has_app_permission(
+            request.user, "edit_delete_documents"
+        ),
         "can_delete_invoice": _has_full_app_access(request.user)
         and not (
             getattr(request.user, "role", None) == "managing_director"
