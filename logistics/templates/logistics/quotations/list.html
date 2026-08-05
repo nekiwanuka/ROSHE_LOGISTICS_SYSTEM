@@ -18,8 +18,8 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Container #</th>
-                        <th>Flow</th>
+                        <th>Reference</th>
+                        <th>Cargo Type</th>
                         <th>Client</th>
                         <th>Total (USD)</th>
                         <th>Status</th>
@@ -30,8 +30,8 @@
                 <tbody>
                     {% for quote in quotes %}
                     <tr>
-                        <td><strong>{{ quote.container_number }}</strong></td>
-                        <td>{{ quote.get_flow_type_display }}</td>
+                        <td><strong>{% if quote.cargo_type == 'air_cargo' %}{{ quote.item_number|default:"Quote" }}{% else %}{{ quote.get_flow_type_display }}{% endif %}</strong></td>
+                        <td>{{ quote.get_cargo_type_display }}</td>
                         <td>
                             <div class="fw-semibold">{{ quote.client.name }}</div>
                             <div class="text-muted small">{{ quote.origin }} → {{ quote.destination }}</div>

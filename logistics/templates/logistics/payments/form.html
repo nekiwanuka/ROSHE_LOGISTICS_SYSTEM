@@ -98,6 +98,13 @@
                             <small class="text-muted">Optional extra charges to include on the invoice.</small>
                         </div>
 
+                        <div class="mb-3" id="pvoc-fee-group">
+                            <label for="{{ form.pvoc_fee.id_for_label }}" class="form-label">PVOC</label>
+                            {{ form.pvoc_fee }}
+                            {% if form.pvoc_fee.errors %}<div class="text-danger">{{ form.pvoc_fee.errors }}</div>{% endif %}
+                            <small class="text-muted">LCL: PVOC is per CBM. FCL: PVOC is per container.</small>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label">Amount Charged (auto)</label>
                             {% if payment %}
@@ -167,12 +174,14 @@
         const cbmGroup = document.getElementById('rate-per-cbm-group');
         const containerGroup = document.getElementById('rate-per-container-group');
         const documentHandlingGroup = document.getElementById('document-handling-group');
+        const pvocFeeGroup = document.getElementById('pvoc-fee-group');
         const airCargoDetails = document.getElementById('air-cargo-details');
         const amountPreview = document.getElementById('amount-charged-preview');
 
         const cbmInput = document.getElementById('{{ form.rate_per_cbm.id_for_label }}');
         const containerInput = document.getElementById('{{ form.rate_per_container.id_for_label }}');
         const documentHandlingInput = document.getElementById('{{ form.document_handling_fee.id_for_label }}');
+        const pvocFeeInput = document.getElementById('{{ form.pvoc_fee.id_for_label }}');
 
         function parseMoney(value) {
             const parsed = parseFloat(String(value || '').replace(/,/g, ''));
@@ -210,6 +219,7 @@
                 setGroupEnabled(cbmGroup, cbmInput, false);
                 setGroupEnabled(containerGroup, containerInput, false);
                 setGroupEnabled(documentHandlingGroup, documentHandlingInput, false);
+                setGroupEnabled(pvocFeeGroup, pvocFeeInput, false);
                 if (airCargoDetails) airCargoDetails.style.display = '';
                 setAirDetail('item-number', selected.dataset.itemNumber);
                 setAirDetail('description', selected.dataset.description);
@@ -228,6 +238,7 @@
 
             if (airCargoDetails) airCargoDetails.style.display = 'none';
             setGroupEnabled(documentHandlingGroup, documentHandlingInput, true);
+            setGroupEnabled(pvocFeeGroup, pvocFeeInput, true);
 
             if (flow === 'lcl') {
                 setGroupEnabled(cbmGroup, cbmInput, true);
@@ -244,6 +255,7 @@
                 if (cbmInput) { cbmInput.disabled = false; cbmInput.required = false; }
                 if (containerInput) { containerInput.disabled = false; containerInput.required = false; }
                 if (documentHandlingInput) { documentHandlingInput.disabled = false; documentHandlingInput.required = false; }
+                if (pvocFeeInput) { pvocFeeInput.disabled = false; pvocFeeInput.required = false; }
             }
         }
 

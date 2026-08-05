@@ -82,6 +82,19 @@
                         <dt class="col-6">Doc &amp; Handling Fees</dt>
                         <dd class="col-6 text-end">${{ payment.document_handling_fee|floatformat:2|intcomma }}</dd>
                         {% endif %}
+                        {% if payment.pvoc_fee and payment.pvoc_fee > 0 %}
+                        <dt class="col-6">PVOC</dt>
+                        <dd class="col-6 text-end">
+                            ${{ payment.pvoc_fee|floatformat:2|intcomma }}
+                            <div class="small text-muted">
+                                {% if payment.loading.flow_type == 'lcl' %}
+                                    Per CBM
+                                {% elif payment.loading.flow_type == 'fcl' %}
+                                    Per container
+                                {% endif %}
+                            </div>
+                        </dd>
+                        {% endif %}
                         <dt class="col-6">Amount Paid</dt>
                         <dd class="col-6 text-end text-success fw-bold">${{ payment.amount_paid|floatformat:2|intcomma }}</dd>
                         {% if pending_count and pending_amount > 0 %}

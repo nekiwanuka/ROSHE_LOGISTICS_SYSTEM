@@ -767,6 +767,7 @@ class PaymentForm(forms.ModelForm):
             "rate_per_cbm",
             "rate_per_container",
             "document_handling_fee",
+            "pvoc_fee",
             "payment_date",
             "payment_method",
             "receipt_number",
@@ -787,6 +788,7 @@ class PaymentForm(forms.ModelForm):
             "document_handling_fee": _decimal_text_widget(
                 placeholder="Document & Handling Fees (optional)"
             ),
+            "pvoc_fee": _decimal_text_widget(placeholder="PVOC Fee (optional)"),
             "payment_date": forms.DateTimeInput(
                 attrs={"class": "form-control", "type": "datetime-local"}
             ),
@@ -805,6 +807,7 @@ class PaymentForm(forms.ModelForm):
         rate_per_cbm = cleaned.get("rate_per_cbm")
         rate_per_container = cleaned.get("rate_per_container")
         document_handling_fee = cleaned.get("document_handling_fee") or 0
+        pvoc_fee = cleaned.get("pvoc_fee") or 0
 
         if not loading:
             return cleaned
@@ -820,9 +823,11 @@ class PaymentForm(forms.ModelForm):
             cleaned["rate_per_cbm"] = None
             cleaned["rate_per_container"] = None
             cleaned["document_handling_fee"] = loading.handling_fees or 0
+            cleaned["pvoc_fee"] = 0
             self.instance.rate_per_cbm = None
             self.instance.rate_per_container = None
             self.instance.document_handling_fee = loading.handling_fees or 0
+            self.instance.pvoc_fee = 0
             self.instance.amount_charged = air_total
             return cleaned
 
@@ -843,8 +848,8 @@ class PaymentForm(forms.ModelForm):
                 )
                 return cleaned
             self.instance.amount_charged = (
-                loading.weight * rate_per_cbm
-            ) + document_handling_fee
+                (loading.weight * rate_per_cbm) + document_handling_fee + pvoc_fee
+            )
         elif flow_type == "fcl":
             # Ensure we don't accidentally keep an LCL rate.
             cleaned["rate_per_cbm"] = None
@@ -855,7 +860,9 @@ class PaymentForm(forms.ModelForm):
                     "Rate per container is required for FCL invoices.",
                 )
                 return cleaned
-            self.instance.amount_charged = rate_per_container + document_handling_fee
+            self.instance.amount_charged = (
+                rate_per_container + document_handling_fee + pvoc_fee
+            )
         else:
             self.add_error(
                 "loading",
@@ -898,17 +905,25 @@ class QuoteForm(forms.ModelForm):
         model = Quote
         fields = [
             "client",
+            "cargo_type",
             "flow_type",
-            "container_number",
             "container_size",
             "origin",
             "destination",
             "loading_date",
+            "item_number",
             "item_description",
+            "ctns",
+            "gross_weight",
+            "rate_per_kg",
+            "handling_fees",
+            "airline",
+            "size_per_carton",
             "cbm",
             "rate_per_cbm",
             "rate_per_container",
             "document_handling_fee",
+            "pvoc_fee",
             "status",
             "notes",
         ]
@@ -921,16 +936,8 @@ class QuoteForm(forms.ModelForm):
                     "data-filter-placeholder": "Search client (type to filter)",
                 }
             ),
+            "cargo_type": forms.Select(attrs={"class": "form-select"}),
             "flow_type": forms.Select(attrs={"class": "form-select"}),
-            "container_number": forms.TextInput(
-                attrs={
-                    "class": "form-control",
-                    "placeholder": "e.g. MSCU1234567",
-                    "style": "text-transform: uppercase;",
-                    "autocapitalize": "characters",
-                    "autocomplete": "off",
-                }
-            ),
             "container_size": forms.Select(attrs={"class": "form-select"}),
             "origin": forms.TextInput(
                 attrs={
@@ -951,6 +958,15 @@ class QuoteForm(forms.ModelForm):
             "loading_date": forms.DateTimeInput(
                 attrs={"class": "form-control", "type": "datetime-local"}
             ),
+            "item_number": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Air cargo item number",
+                    "style": "text-transform: uppercase;",
+                    "autocapitalize": "characters",
+                    "autocomplete": "off",
+                }
+            ),
             "item_description": forms.Textarea(
                 attrs={
                     "class": "form-control",
@@ -958,10 +974,32 @@ class QuoteForm(forms.ModelForm):
                     "placeholder": "Optional cargo description",
                 }
             ),
+            "ctns": forms.NumberInput(
+                attrs={"class": "form-control", "placeholder": "CTNs", "min": "0"}
+            ),
+            "gross_weight": _decimal_text_widget(placeholder="Gross weight in kg"),
+            "rate_per_kg": _decimal_text_widget(placeholder="Rate per kg"),
+            "handling_fees": _decimal_text_widget(
+                placeholder="Air cargo handling fees (optional)"
+            ),
+            "airline": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Airline (optional)",
+                    "autocapitalize": "words",
+                    "data-smart-titlecase": "1",
+                }
+            ),
+            "size_per_carton": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Size per carton"}
+            ),
             "cbm": _decimal_text_widget(placeholder="Client CBM (LCL only)"),
             "rate_per_cbm": _decimal_text_widget(placeholder="e.g. 120"),
             "rate_per_container": _decimal_text_widget(placeholder="e.g. 2500"),
             "document_handling_fee": _decimal_text_widget(placeholder="e.g. 50"),
+            "pvoc_fee": _decimal_text_widget(
+                placeholder="PVOC per CBM for LCL / per container for FCL"
+            ),
             "status": forms.Select(attrs={"class": "form-select"}),
             "notes": forms.Textarea(
                 attrs={
@@ -975,11 +1013,16 @@ class QuoteForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         client = cleaned.get("client")
+        cargo_type = cleaned.get("cargo_type")
         flow_type = cleaned.get("flow_type")
-        container_number = cleaned.get("container_number")
         origin = cleaned.get("origin")
         destination = cleaned.get("destination")
         loading_date = cleaned.get("loading_date")
+        item_number = cleaned.get("item_number")
+        item_description = cleaned.get("item_description")
+        ctns = cleaned.get("ctns")
+        gross_weight = cleaned.get("gross_weight")
+        rate_per_kg = cleaned.get("rate_per_kg")
         cbm = cleaned.get("cbm")
         container_size = cleaned.get("container_size")
         rate_per_cbm = cleaned.get("rate_per_cbm")
@@ -987,8 +1030,8 @@ class QuoteForm(forms.ModelForm):
 
         if not client:
             self.add_error("client", "Client is required.")
-        if not container_number:
-            self.add_error("container_number", "Container number is required.")
+        if not cargo_type:
+            self.add_error("cargo_type", "Cargo type is required.")
         if not origin:
             self.add_error("origin", "Origin is required.")
         if not destination:
@@ -996,7 +1039,57 @@ class QuoteForm(forms.ModelForm):
         if not loading_date:
             self.add_error("loading_date", "Loading date is required.")
 
-        if flow_type == "lcl":
+        if cargo_type == "air_cargo":
+            cleaned["flow_type"] = "lcl"
+            cleaned["container_number"] = ""
+            cleaned["container_size"] = ""
+            cleaned["cbm"] = None
+            cleaned["rate_per_cbm"] = None
+            cleaned["rate_per_container"] = None
+            cleaned["document_handling_fee"] = 0
+            cleaned["pvoc_fee"] = 0
+            self.instance.flow_type = "lcl"
+            self.instance.container_number = ""
+            self.instance.container_size = ""
+            self.instance.cbm = None
+            self.instance.rate_per_cbm = None
+            self.instance.rate_per_container = None
+            self.instance.document_handling_fee = 0
+            self.instance.pvoc_fee = 0
+            if not (item_number or "").strip():
+                self.add_error(
+                    "item_number", "Item number is required for Air Cargo quotations."
+                )
+            if not (item_description or "").strip():
+                self.add_error(
+                    "item_description",
+                    "Description is required for Air Cargo quotations.",
+                )
+            if ctns is None:
+                self.add_error("ctns", "CTNs are required for Air Cargo quotations.")
+            if gross_weight is None:
+                self.add_error(
+                    "gross_weight", "Gross weight is required for Air Cargo quotations."
+                )
+            if rate_per_kg is None:
+                self.add_error(
+                    "rate_per_kg", "Rate per kg is required for Air Cargo quotations."
+                )
+        elif flow_type == "lcl":
+            cleaned["item_number"] = ""
+            cleaned["ctns"] = None
+            cleaned["gross_weight"] = None
+            cleaned["rate_per_kg"] = None
+            cleaned["handling_fees"] = 0
+            cleaned["airline"] = ""
+            cleaned["size_per_carton"] = ""
+            self.instance.item_number = ""
+            self.instance.ctns = None
+            self.instance.gross_weight = None
+            self.instance.rate_per_kg = None
+            self.instance.handling_fees = 0
+            self.instance.airline = ""
+            self.instance.size_per_carton = ""
             if cbm is None:
                 self.add_error(
                     "cbm",
@@ -1007,6 +1100,20 @@ class QuoteForm(forms.ModelForm):
                     "rate_per_cbm", "Cost per CBM is required for LCL quotations."
                 )
         elif flow_type == "fcl":
+            cleaned["item_number"] = ""
+            cleaned["ctns"] = None
+            cleaned["gross_weight"] = None
+            cleaned["rate_per_kg"] = None
+            cleaned["handling_fees"] = 0
+            cleaned["airline"] = ""
+            cleaned["size_per_carton"] = ""
+            self.instance.item_number = ""
+            self.instance.ctns = None
+            self.instance.gross_weight = None
+            self.instance.rate_per_kg = None
+            self.instance.handling_fees = 0
+            self.instance.airline = ""
+            self.instance.size_per_carton = ""
             if not container_size:
                 self.add_error(
                     "container_size", "Container size is required for FCL quotations."
@@ -1016,6 +1123,8 @@ class QuoteForm(forms.ModelForm):
                     "rate_per_container",
                     "Cost per container is required for FCL quotations.",
                 )
+        elif cargo_type == "freight_cargo":
+            self.add_error("flow_type", "Flow type is required for freight quotations.")
 
         return cleaned
 
@@ -1025,6 +1134,10 @@ class QuoteForm(forms.ModelForm):
         self.fields["client"].label_from_instance = (
             lambda c: f"{c.client_id} - {c.name}"
         )
+        cargo_choices = [
+            choice for choice in self.fields["cargo_type"].choices if choice[0]
+        ]
+        self.fields["cargo_type"].choices = [("", "Select cargo type")] + cargo_choices
 
 
 class ContainerReturnForm(forms.ModelForm):

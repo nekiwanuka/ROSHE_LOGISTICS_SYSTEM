@@ -123,6 +123,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
     list_display = (
         "loading",
+        "pvoc_fee",
         "amount_charged",
         "amount_paid",
         "balance",
@@ -143,14 +144,20 @@ class QuoteAdmin(admin.ModelAdmin):
 
     list_display = (
         "client",
-        "container_number",
+        "cargo_type",
         "flow_type",
         "amount_quoted",
         "status",
         "created_at",
     )
-    search_fields = ("container_number", "client__name", "origin", "destination")
-    list_filter = ("status", "created_at")
+    search_fields = (
+        "container_number",
+        "item_number",
+        "client__name",
+        "origin",
+        "destination",
+    )
+    list_filter = ("cargo_type", "status", "created_at")
     readonly_fields = ("amount_quoted", "created_at", "updated_at")
 
 

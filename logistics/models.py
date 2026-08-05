@@ -333,6 +333,9 @@ class Payment(models.Model):
     document_handling_fee = models.DecimalField(
         max_digits=12, decimal_places=2, default=0, blank=True
     )
+    pvoc_fee = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, blank=True
+    )
     amount_charged = models.DecimalField(max_digits=12, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     balance = models.DecimalField(max_digits=12, decimal_places=2)
@@ -400,6 +403,7 @@ class Payment(models.Model):
     def save(self, *args, **kwargs):
         # Automatically calculate amount charged from rate fields when possible.
         fee = self.document_handling_fee or 0
+        pvoc_fee = self.pvoc_fee or 0
         freight_amount = None
         if getattr(self.loading, "cargo_type", None) == "air_cargo":
             air_total = self.loading.air_cargo_total
@@ -417,7 +421,7 @@ class Payment(models.Model):
                 freight_amount = self.rate_per_container
 
         if freight_amount is not None:
-            self.amount_charged = freight_amount + fee
+            self.amount_charged = freight_amount + fee + pvoc_fee
 
         # Automatically calculate balance
         self.balance = self.amount_charged - self.amount_paid
@@ -444,6 +448,9 @@ class Quote(models.Model):
         null=True,
         blank=True,
     )
+    cargo_type = models.CharField(
+        max_length=20, choices=Loading.CARGO_TYPE_CHOICES, default="freight_cargo"
+    )
     flow_type = models.CharField(
         max_length=10, choices=Loading.FLOW_CHOICES, default="fcl"
     )
@@ -456,7 +463,20 @@ class Quote(models.Model):
     origin = models.CharField(max_length=255, null=True, blank=True)
     destination = models.CharField(max_length=255, null=True, blank=True)
     loading_date = models.DateTimeField(null=True, blank=True)
+    item_number = models.CharField(max_length=100, blank=True)
     item_description = models.TextField(blank=True, null=True)
+    ctns = models.PositiveIntegerField(null=True, blank=True, verbose_name="CTNs")
+    gross_weight = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    rate_per_kg = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    handling_fees = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, blank=True
+    )
+    airline = models.CharField(max_length=255, blank=True)
+    size_per_carton = models.CharField(max_length=100, blank=True)
 
     # LCL only (CBM provided by client at quotation stage).
     cbm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -478,6 +498,9 @@ class Quote(models.Model):
     document_handling_fee = models.DecimalField(
         max_digits=12, decimal_places=2, default=0, blank=True
     )
+    pvoc_fee = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, blank=True
+    )
     amount_quoted = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     notes = models.TextField(blank=True)
@@ -491,23 +514,34 @@ class Quote(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        label = self.container_number or f"Quote #{self.pk}"
+        label = self.container_number or self.item_number or f"Quote #{self.pk}"
         return f"Quote for {label}"
 
     def save(self, *args, **kwargs):
         self.container_number = _normalize_container_number(self.container_number)
+        self.item_number = _normalize_container_number(self.item_number)
         self.origin = _normalize_sentence_case(self.origin)
         self.destination = _normalize_sentence_case(self.destination)
-        fee = self.document_handling_fee or 0
+        self.airline = _normalize_title_case(self.airline)
+        fee = (
+            self.handling_fees
+            if self.cargo_type == "air_cargo"
+            else self.document_handling_fee
+        )
+        fee = fee or 0
+        pvoc_fee = 0 if self.cargo_type == "air_cargo" else (self.pvoc_fee or 0)
         quoted = None
-        if (
+        if self.cargo_type == "air_cargo":
+            if self.gross_weight is not None and self.rate_per_kg is not None:
+                quoted = (self.gross_weight * self.rate_per_kg) + fee
+        elif (
             self.flow_type == "lcl"
             and self.rate_per_cbm is not None
             and self.cbm is not None
         ):
-            quoted = (self.cbm * self.rate_per_cbm) + fee
+            quoted = (self.cbm * self.rate_per_cbm) + fee + (self.cbm * pvoc_fee)
         elif self.flow_type == "fcl" and self.rate_per_container is not None:
-            quoted = self.rate_per_container + fee
+            quoted = self.rate_per_container + fee + pvoc_fee
 
         if quoted is not None:
             self.amount_quoted = quoted

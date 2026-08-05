@@ -1841,6 +1841,7 @@ def payment_invoice(request, pk):
     fee = (
         loading.handling_fees if is_air_cargo else payment.document_handling_fee
     ) or 0
+    pvoc_fee = Decimal("0") if is_air_cargo else (payment.pvoc_fee or Decimal("0"))
 
     primary = colors.HexColor("#003366")
     accent = colors.HexColor("#f2cb3f")
@@ -2174,6 +2175,21 @@ def payment_invoice(request, pk):
                 "",
                 "",
                 table_cell(f"{fee:,.2f}", table_number),
+            ]
+        )
+    if pvoc_fee and pvoc_fee > 0:
+        pvoc_label = "PVOC"
+        if flow == "lcl" and loading.weight is not None:
+            per_cbm = pvoc_fee / loading.weight if loading.weight else pvoc_fee
+            pvoc_label = f"PVOC ({loading.weight:.2f} CBM x {per_cbm:,.2f} / CBM)"
+        elif flow == "fcl":
+            pvoc_label = f"PVOC ({pvoc_fee:,.2f} / Container)"
+        items.append(
+            [
+                table_cell(pvoc_label),
+                "",
+                "",
+                table_cell(f"{pvoc_fee:,.2f}", table_number),
             ]
         )
 
@@ -2704,14 +2720,23 @@ def quote_detail(request, quote_id):
         Quote.objects.select_related("client", "loading"), pk=quote_id
     )
     flow = quote.flow_type
-    fee = quote.document_handling_fee or Decimal("0")
+    is_air_cargo = quote.cargo_type == "air_cargo"
+    fee = (
+        quote.handling_fees if is_air_cargo else quote.document_handling_fee
+    ) or Decimal("0")
 
     qty = None
     rate = None
     freight_amount = None
     unit_label = ""
 
-    if flow == "lcl":
+    if is_air_cargo:
+        qty = quote.gross_weight
+        rate = quote.rate_per_kg
+        unit_label = "KGS"
+        if qty is not None and rate is not None:
+            freight_amount = qty * rate
+    elif flow == "lcl":
         qty = quote.cbm
         rate = quote.rate_per_cbm
         unit_label = "CBM"
@@ -2725,6 +2750,12 @@ def quote_detail(request, quote_id):
             freight_amount = rate
 
     total = quote.amount_quoted
+    pvoc_rate = Decimal("0") if is_air_cargo else (quote.pvoc_fee or Decimal("0"))
+    pvoc_total = Decimal("0")
+    if pvoc_rate and quote.flow_type == "lcl" and quote.cbm is not None:
+        pvoc_total = quote.cbm * pvoc_rate
+    elif pvoc_rate and quote.flow_type == "fcl":
+        pvoc_total = pvoc_rate
 
     context = {
         "quote": quote,
@@ -2735,7 +2766,10 @@ def quote_detail(request, quote_id):
             "unit_label": unit_label,
             "freight_amount": freight_amount,
             "fee": fee,
+            "pvoc_rate": pvoc_rate,
+            "pvoc_total": pvoc_total,
             "total": total,
+            "cargo_type": quote.cargo_type,
         },
     }
     return render(request, "logistics/quotations/detail.html", context)
@@ -2811,7 +2845,11 @@ def quote_pdf(request, quote_id):
         )
         canvas_obj.drawString(company_x, top - 36, "www.roshegroup.com")
 
-        label_text = f"SHIPMENT QUOTATION {quote_no}"
+        label_text = (
+            f"AIR CARGO QUOTATION {quote_no}"
+            if quote.cargo_type == "air_cargo"
+            else f"FREIGHT QUOTATION {quote_no}"
+        )
         canvas_obj.setFont("Helvetica-Bold", 12)
         label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 12) + 16
         label_h = 20
@@ -2840,7 +2878,7 @@ def quote_pdf(request, quote_id):
         rightMargin=40,
         topMargin=150,
         bottomMargin=55,
-        title=f"Shipment Quotation {quote_no}",
+        title=f"{'Air Cargo' if quote.cargo_type == 'air_cargo' else 'Freight'} Quotation {quote_no}",
     )
 
     bill_to_lines = [
@@ -2860,9 +2898,17 @@ def quote_pdf(request, quote_id):
         f"<b>Quotation No:</b> {quote_no}",
         f"<b>Status:</b> {quote.get_status_display()}",
         f"<b>Date:</b> {_fmt_dt(quote.created_at) or '—'}",
-        f"<b>Container Number:</b> {quote.container_number or '—'}",
+        f"<b>Cargo Type:</b> {quote.get_cargo_type_display()}",
         f"<b>Route:</b> {(quote.origin or '—')} to {(quote.destination or '—')}",
     ]
+    if quote.cargo_type == "air_cargo":
+        meta_lines.append(f"<b>Item Number:</b> {quote.item_number or '—'}")
+        if quote.airline:
+            meta_lines.append(f"<b>Airline:</b> {quote.airline}")
+    if quote.item_description:
+        meta_lines.append(
+            f"<b>Description of Items:</b> {escape(quote.item_description)}"
+        )
     meta = Paragraph("<br/>".join(meta_lines), normal)
 
     info_table = Table(
@@ -2884,8 +2930,28 @@ def quote_pdf(request, quote_id):
         )
     )
 
-    fee = quote.document_handling_fee or Decimal("0")
-    if quote.flow_type == "lcl":
+    is_air_cargo = quote.cargo_type == "air_cargo"
+    fee = (
+        quote.handling_fees if is_air_cargo else quote.document_handling_fee
+    ) or Decimal("0")
+    if is_air_cargo:
+        qty_label = (
+            _fmt_number(quote.gross_weight, decimals=2)
+            if quote.gross_weight is not None
+            else "—"
+        )
+        rate_label = (
+            _fmt_number(quote.rate_per_kg, decimals=2)
+            if quote.rate_per_kg is not None
+            else "—"
+        )
+        freight_amount = (
+            (quote.gross_weight * quote.rate_per_kg)
+            if (quote.gross_weight is not None and quote.rate_per_kg is not None)
+            else None
+        )
+        unit_label = "KGS"
+    elif quote.flow_type == "lcl":
         qty_label = _fmt_number(quote.cbm, decimals=2) if quote.cbm is not None else "—"
         rate_label = (
             _fmt_number(quote.rate_per_cbm, decimals=2)
@@ -2914,21 +2980,65 @@ def quote_pdf(request, quote_id):
         _fmt_number(freight_amount, decimals=2) if freight_amount is not None else "—"
     )
     route = f"{quote.origin or '—'} to {quote.destination or '—'}"
-    freight_item = f"Shipment Charges ({route})"
+    charge_label = "AIR CARGO" if is_air_cargo else "FREIGHT CHARGE"
+    description_lines = [f"<b>{charge_label}</b>"]
+    if quote.item_description:
+        description_lines.append(
+            f"Description of Items: {escape(quote.item_description)}"
+        )
+    description_lines.append(route)
+    freight_item = Paragraph("<br/>".join(description_lines), normal)
 
-    items = [
-        ["Items", unit_label, "Rate", "Amount"],
-        [freight_item, qty_label, rate_label, freight_amount_label],
-    ]
+    if is_air_cargo:
+        freight_basis = (
+            f"{qty_label} KGS x {_fmt_number(quote.rate_per_kg, decimals=2)} / KG"
+            if quote.rate_per_kg is not None
+            else "Per KG"
+        )
+    elif quote.flow_type == "lcl":
+        freight_basis = (
+            f"{qty_label} CBM x {_fmt_number(quote.rate_per_cbm, decimals=2)} / CBM"
+            if quote.rate_per_cbm is not None
+            else "Per CBM"
+        )
+    else:
+        freight_basis = (
+            f"{_fmt_number(quote.rate_per_container, decimals=2)} / Container"
+            if quote.rate_per_container is not None
+            else "Per Container"
+        )
+
+    items = [["NO.", "DETAILS", "RATE BASIS", "TOTAL"]]
+    charge_rows = [[freight_item, freight_basis, freight_amount_label]]
     if fee and fee > 0:
-        items.append(["Document & Handling Fees", "", "", _fmt_number(fee, decimals=2)])
+        fee_label = "HANDLING FEES" if is_air_cargo else "DOCUMENTS FEE"
+        charge_rows.append([fee_label, "Flat charge", _fmt_number(fee, decimals=2)])
+    pvoc_rate = Decimal("0") if is_air_cargo else (quote.pvoc_fee or Decimal("0"))
+    pvoc_total = Decimal("0")
+    if pvoc_rate and quote.flow_type == "lcl" and quote.cbm is not None:
+        pvoc_total = quote.cbm * pvoc_rate
+    elif pvoc_rate and quote.flow_type == "fcl":
+        pvoc_total = pvoc_rate
+    if pvoc_total and pvoc_total > 0:
+        pvoc_label = "PVOC"
+        pvoc_basis = "Per container"
+        if quote.flow_type == "lcl" and quote.cbm is not None:
+            pvoc_basis = f"{_fmt_number(quote.cbm, decimals=2)} CBM x {_fmt_number(pvoc_rate, decimals=2)} / CBM"
+        elif quote.flow_type == "fcl":
+            pvoc_basis = f"{_fmt_number(pvoc_rate, decimals=2)} / Container"
+        charge_rows.append(
+            [pvoc_label, pvoc_basis, _fmt_number(pvoc_total, decimals=2)]
+        )
+
+    for index, (detail, basis, amount) in enumerate(charge_rows, start=1):
+        items.append([str(index), detail, basis, amount])
 
     items_table = Table(
         items,
         colWidths=[
-            doc.width * 0.52,
             doc.width * 0.16,
-            doc.width * 0.16,
+            doc.width * 0.46,
+            doc.width * 0.22,
             doc.width * 0.16,
         ],
         hAlign="LEFT",
@@ -2939,7 +3049,9 @@ def quote_pdf(request, quote_id):
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F2F2F2")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                ("ALIGN", (0, 1), (0, -1), "CENTER"),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+                ("ALIGN", (3, 1), (3, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
                 ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.black),
@@ -2954,16 +3066,16 @@ def quote_pdf(request, quote_id):
     totals_table = Table(
         [
             [
+                "Grand Total (USD)",
                 "",
                 "",
-                "Total Quoted (USD)",
                 _fmt_number(quote.amount_quoted, decimals=2),
             ],
         ],
         colWidths=[
-            doc.width * 0.52,
             doc.width * 0.16,
-            doc.width * 0.16,
+            doc.width * 0.46,
+            doc.width * 0.22,
             doc.width * 0.16,
         ],
         hAlign="LEFT",
@@ -2971,10 +3083,12 @@ def quote_pdf(request, quote_id):
     totals_table.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
-                ("LINEABOVE", (2, 0), (-1, 0), 0.7, colors.black),
-                ("LINEBELOW", (2, -1), (-1, -1), 0.7, colors.black),
+                ("SPAN", (0, 0), (2, 0)),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("ALIGN", (0, 0), (2, 0), "RIGHT"),
+                ("ALIGN", (3, 0), (3, 0), "RIGHT"),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
+                ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.black),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]
@@ -3075,10 +3189,24 @@ def quote_convert_to_invoice(request, quote_id):
 
         container_number = quote.container_number
         if not (container_number or "").strip():
-            if quote.flow_type == "lcl":
+            if quote.cargo_type == "air_cargo":
+                container_number = ""
+            elif quote.flow_type == "lcl":
                 container_number = f"LCL-{quote.pk:05d}"
             else:
-                missing.append("Container number")
+                container_number = f"FCL-{quote.pk:05d}"
+
+        if quote.cargo_type == "air_cargo":
+            if not (quote.item_number or "").strip():
+                missing.append("Item number")
+            if not (quote.item_description or "").strip():
+                missing.append("Description")
+            if quote.ctns is None:
+                missing.append("CTNs")
+            if quote.gross_weight is None:
+                missing.append("Gross weight")
+            if quote.rate_per_kg is None:
+                missing.append("Rate per kg")
 
         if missing:
             messages.error(
@@ -3094,10 +3222,18 @@ def quote_convert_to_invoice(request, quote_id):
 
         loading = Loading.objects.create(
             flow_type=quote.flow_type,
+            cargo_type=quote.cargo_type,
             client=quote.client,
             loading_date=quote.loading_date,
+            item_number=quote.item_number,
             item_description=quote.item_description,
+            ctns=quote.ctns,
             weight=quote.cbm,
+            gross_weight=quote.gross_weight,
+            rate_per_kg=quote.rate_per_kg,
+            handling_fees=quote.handling_fees or 0,
+            airline=quote.airline,
+            size_per_carton=quote.size_per_carton,
             container_number=container_number,
             container_size=container_size,
             origin=(quote.origin or "").strip(),
@@ -3121,6 +3257,11 @@ def quote_convert_to_invoice(request, quote_id):
         rate_per_cbm=quote.rate_per_cbm,
         rate_per_container=quote.rate_per_container,
         document_handling_fee=quote.document_handling_fee or 0,
+        pvoc_fee=(
+            (quote.cbm * quote.pvoc_fee)
+            if quote.flow_type == "lcl" and quote.cbm is not None and quote.pvoc_fee
+            else (quote.pvoc_fee or 0)
+        ),
         amount_charged=0,
         amount_paid=0,
         balance=0,
