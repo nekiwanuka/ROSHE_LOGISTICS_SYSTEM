@@ -83,7 +83,7 @@
                                     {% if form.flow_type.errors %}<div class="text-danger">{{ form.flow_type.errors }}</div>{% endif %}
                                     <p class="field-hint">Choose LCL (rate per CBM) or FCL (rate per container).</p>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6" id="field-origin">
                                     <label for="{{ form.cargo_type.id_for_label }}" class="form-label">Cargo Type *</label>
                                     {{ form.cargo_type }}
                                     {% if form.cargo_type.errors %}<div class="text-danger">{{ form.cargo_type.errors }}</div>{% endif %}
@@ -154,19 +154,30 @@
                                     {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="{{ form.ctns.id_for_label }}" class="form-label" id="ctns-label">CTNs</label>
+                                    <label for="{{ form.ctns.id_for_label }}" class="form-label" id="ctns-label">Package Count</label>
                                     {{ form.ctns }}
                                     {% if form.ctns.errors %}<div class="text-danger">{{ form.ctns.errors }}</div>{% endif %}
-                                    <p class="field-hint" id="ctns-hint">Cartons count.</p>
+                                    <p class="field-hint" id="ctns-hint">Number of CTNs, packages, parcels, packs, or sets.</p>
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
-                                    <label for="{{ form.gross_weight.id_for_label }}" class="form-label">Gross Weight (kg) *</label>
+                                    <label for="{{ form.gross_weight.id_for_label }}" class="form-label">Gross Weight (KGS)</label>
                                     {{ form.gross_weight }}
                                     {% if form.gross_weight.errors %}<div class="text-danger">{{ form.gross_weight.errors }}</div>{% endif %}
-                                    <p class="field-hint">Total kilograms for all cartons for this item.</p>
+                                    <p class="field-hint">Required for every air cargo item and always measured in KGS.</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.cargo_unit.id_for_label }}" class="form-label">Package Type</label>
+                                    {{ form.cargo_unit }}
+                                    {% if form.cargo_unit.errors %}<div class="text-danger">{{ form.cargo_unit.errors }}</div>{% endif %}
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
-                                    <label for="{{ form.rate_per_kg.id_for_label }}" class="form-label">Rate per Kg *</label>
+                                    <label for="{{ form.air_rate_basis.id_for_label }}" class="form-label">Rate Basis</label>
+                                    {{ form.air_rate_basis }}
+                                    {% if form.air_rate_basis.errors %}<div class="text-danger">{{ form.air_rate_basis.errors }}</div>{% endif %}
+                                    <p class="field-hint">Choose whether the rate is charged per KGS or per selected package type.</p>
+                                </div>
+                                <div class="col-md-6 air-cargo-field">
+                                    <label for="{{ form.rate_per_kg.id_for_label }}" class="form-label" id="rate-label">Rate *</label>
                                     {{ form.rate_per_kg }}
                                     {% if form.rate_per_kg.errors %}<div class="text-danger">{{ form.rate_per_kg.errors }}</div>{% endif %}
                                 </div>
@@ -183,15 +194,9 @@
                                     <p class="field-hint">Optional.</p>
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
-                                    <label for="{{ form.size_per_carton.id_for_label }}" class="form-label">Size per Carton</label>
-                                    {{ form.size_per_carton }}
-                                    {% if form.size_per_carton.errors %}<div class="text-danger">{{ form.size_per_carton.errors }}</div>{% endif %}
-                                    <p class="field-hint">Optional.</p>
-                                </div>
-                                <div class="col-md-6 air-cargo-field">
                                     <label class="form-label">Air Cargo Total</label>
                                     <input type="text" id="air-cargo-total" class="form-control" value="$0.00" readonly>
-                                    <p class="field-hint">Gross weight × rate per kg + handling fees.</p>
+                                    <p class="field-hint" id="air-total-hint">Package count x rate + handling fees.</p>
                                 </div>
                             </div>
                         </div>
@@ -233,10 +238,19 @@
         function updateAirCargoTotal() {
             var total = document.getElementById('air-cargo-total');
             if (!total) return;
+            var packageCount = parseMoney(document.getElementById('id_ctns') && document.getElementById('id_ctns').value);
             var grossWeight = parseMoney(document.getElementById('id_gross_weight') && document.getElementById('id_gross_weight').value);
+            var basisInput = document.getElementById('id_air_rate_basis');
+            var basis = basisInput ? basisInput.value : 'package';
+            var quantity = basis === 'kg' ? grossWeight : packageCount;
             var rate = parseMoney(document.getElementById('id_rate_per_kg') && document.getElementById('id_rate_per_kg').value);
             var fees = parseMoney(document.getElementById('id_handling_fees') && document.getElementById('id_handling_fees').value);
-            total.value = '$' + ((grossWeight * rate) + fees).toFixed(2);
+            total.value = '$' + ((quantity * rate) + fees).toFixed(2);
+
+            var rateLabel = document.getElementById('rate-label');
+            var totalHint = document.getElementById('air-total-hint');
+            if (rateLabel) rateLabel.textContent = basis === 'kg' ? 'Rate per KGS *' : 'Rate per Package *';
+            if (totalHint) totalHint.textContent = basis === 'kg' ? 'Gross weight x rate + handling fees.' : 'Package count x rate + handling fees.';
         }
 
         function toggleLoadingFields() {
@@ -256,6 +270,7 @@
             var flowField = document.getElementById('field-flow-type');
             var containerNumberField = document.getElementById('field-container-number');
             var containerSizeField = document.getElementById('field-container-size');
+            var originField = document.getElementById('field-origin');
             var airFields = document.querySelectorAll('.air-cargo-field');
 
             var weightInput = document.getElementById('id_weight');
@@ -266,6 +281,7 @@
             var descriptionInput = document.getElementById('id_item_description');
             var ctnsInput = document.getElementById('id_ctns');
             var grossWeightInput = document.getElementById('id_gross_weight');
+            var rateBasisInput = document.getElementById('id_air_rate_basis');
             var rateInput = document.getElementById('id_rate_per_kg');
 
             if (isAirCargo) {
@@ -275,16 +291,19 @@
             if (flowField) flowField.style.display = isAirCargo ? 'none' : '';
             if (containerNumberField) containerNumberField.style.display = isAirCargo ? 'none' : '';
             if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
+            if (originField) originField.style.display = isAirCargo ? '' : 'none';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
 
             setFieldEnabled(containerInput, !isAirCargo);
             setFieldEnabled(containerSizeInput, !isAirCargo);
             setFieldEnabled(itemNumberInput, isAirCargo);
             setFieldEnabled(grossWeightInput, isAirCargo);
+            setFieldEnabled(rateBasisInput, isAirCargo);
             setFieldEnabled(rateInput, isAirCargo);
 
             setRequired(containerInput, !isAirCargo);
-            setRequired(originInput, !isAirCargo);
+            setFieldEnabled(originInput, isAirCargo);
+            setRequired(originInput, false);
             setRequired(itemNumberInput, isAirCargo);
             setRequired(descriptionInput, isAirCargo);
             setRequired(ctnsInput, isAirCargo);
@@ -294,8 +313,8 @@
 
             if (originLabel) originLabel.textContent = isAirCargo ? 'Origin (optional)' : 'Origin *';
             if (descriptionLabel) descriptionLabel.textContent = isAirCargo ? 'Description of the Items *' : 'Item Description';
-            if (ctnsLabel) ctnsLabel.textContent = isAirCargo ? 'Number of CTNs/Cartons *' : 'CTNs';
-            if (ctnsHint) ctnsHint.textContent = isAirCargo ? 'Total cartons for this item.' : 'Cartons count.';
+            if (ctnsLabel) ctnsLabel.textContent = isAirCargo ? 'Package Count *' : 'CTNs';
+            if (ctnsHint) ctnsHint.textContent = isAirCargo ? 'Number of CTNs, packages, parcels, packs, or sets.' : 'Cartons count.';
 
             if (isAirCargo) {
                 if (weightField) weightField.style.display = 'none';
@@ -319,7 +338,7 @@
             }
         });
         document.addEventListener('input', function(e) {
-            if (e.target && ['id_gross_weight', 'id_rate_per_kg', 'id_handling_fees'].indexOf(e.target.id) !== -1) {
+            if (e.target && ['id_ctns', 'id_gross_weight', 'id_air_rate_basis', 'id_rate_per_kg', 'id_handling_fees'].indexOf(e.target.id) !== -1) {
                 updateAirCargoTotal();
             }
         });

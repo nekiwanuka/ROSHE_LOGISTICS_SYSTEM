@@ -194,6 +194,20 @@ class Loading(models.Model):
         ("freight_cargo", "Freight Cargo"),
     )
 
+    CARGO_UNIT_CHOICES = (
+        ("ctn", "CTNs"),
+        ("package", "Packages"),
+        ("parcel", "Parcels"),
+        ("pack", "Packs"),
+        ("set", "Sets"),
+        ("other", "Other"),
+    )
+
+    AIR_RATE_BASIS_CHOICES = (
+        ("package", "Package Type"),
+        ("kg", "KGS"),
+    )
+
     flow_type = models.CharField(max_length=10, choices=FLOW_CHOICES, default="fcl")
     cargo_type = models.CharField(
         max_length=20, choices=CARGO_TYPE_CHOICES, default="freight_cargo"
@@ -210,6 +224,12 @@ class Loading(models.Model):
     gross_weight = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
+    cargo_unit = models.CharField(
+        max_length=20, choices=CARGO_UNIT_CHOICES, default="ctn", blank=True
+    )
+    air_rate_basis = models.CharField(
+        max_length=20, choices=AIR_RATE_BASIS_CHOICES, default="package", blank=True
+    )
     rate_per_kg = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True
     )
@@ -218,6 +238,27 @@ class Loading(models.Model):
     )
     airline = models.CharField(max_length=255, blank=True)
     size_per_carton = models.CharField(max_length=100, blank=True)
+    payment_terms = models.CharField(max_length=100, default="", blank=True)
+    currency = models.CharField(max_length=10, default="USD", blank=True)
+    incoterm = models.CharField(max_length=100, default="", blank=True)
+    port_of_loading = models.CharField(max_length=255, default="", blank=True)
+    port_of_discharge = models.CharField(max_length=255, default="", blank=True)
+    final_destination = models.CharField(max_length=255, default="", blank=True)
+    vessel_voyage = models.CharField(max_length=255, default="", blank=True)
+    etd = models.DateTimeField(null=True, blank=True)
+    eta = models.DateTimeField(null=True, blank=True)
+    seal_number = models.CharField(max_length=100, default="", blank=True)
+    no_of_packages = models.CharField(max_length=100, default="", blank=True)
+    measurement = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    awb_number = models.CharField(max_length=100, default="", blank=True)
+    flight_date = models.DateTimeField(null=True, blank=True)
+    estimated_arrival = models.DateTimeField(null=True, blank=True)
+    chargeable_weight = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    commodity = models.CharField(max_length=255, default="", blank=True)
     container_number = models.CharField(max_length=100, blank=True)
     container_size = models.CharField(
         max_length=20, choices=CONTAINER_SIZE_CHOICES, blank=True
@@ -239,15 +280,28 @@ class Loading(models.Model):
 
     @property
     def air_cargo_total(self):
-        if (
-            self.cargo_type != "air_cargo"
-            or self.gross_weight is None
-            or self.rate_per_kg is None
-        ):
+        if self.cargo_type != "air_cargo" or self.rate_per_kg is None:
             return None
-        return (self.gross_weight * self.rate_per_kg) + (
-            self.handling_fees or Decimal("0")
-        )
+        quantity = self.air_rate_quantity
+        if quantity is None:
+            return None
+        return (quantity * self.rate_per_kg) + (self.handling_fees or Decimal("0"))
+
+    @property
+    def air_rate_quantity(self):
+        if self.cargo_type != "air_cargo":
+            return None
+        if self.air_rate_basis == "kg":
+            return self.gross_weight
+        if self.ctns is None:
+            return None
+        return Decimal(self.ctns)
+
+    @property
+    def air_rate_unit_label(self):
+        if self.air_rate_basis == "kg":
+            return "KGS"
+        return self.get_cargo_unit_display() or "Package Type"
 
     def clean(self):
         super().clean()
@@ -314,6 +368,11 @@ class Transit(models.Model):
 class Payment(models.Model):
     """Payment management model"""
 
+    DOCUMENT_VERSION_CHOICES = (
+        ("legacy", "Legacy"),
+        ("current", "Current"),
+    )
+
     PAYMENT_METHOD_CHOICES = (
         ("cash", "Cash"),
         ("bank", "Bank"),
@@ -344,6 +403,12 @@ class Payment(models.Model):
         max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True
     )
     receipt_number = models.CharField(max_length=100, blank=True)
+    document_version = models.CharField(
+        max_length=20,
+        choices=DOCUMENT_VERSION_CHOICES,
+        default="current",
+        editable=False,
+    )
     created_by = models.ForeignKey(
         CustomUser, on_delete=models.PROTECT, related_name="created_payments"
     )
@@ -403,7 +468,7 @@ class Payment(models.Model):
     def save(self, *args, **kwargs):
         # Automatically calculate amount charged from rate fields when possible.
         fee = self.document_handling_fee or 0
-        pvoc_fee = self.pvoc_fee or 0
+        pvoc_fee = self.pvoc_total
         freight_amount = None
         if getattr(self.loading, "cargo_type", None) == "air_cargo":
             air_total = self.loading.air_cargo_total
@@ -427,6 +492,18 @@ class Payment(models.Model):
         self.balance = self.amount_charged - self.amount_paid
         super().save(*args, **kwargs)
 
+    @property
+    def pvoc_total(self):
+        if getattr(self.loading, "cargo_type", None) == "air_cargo":
+            return Decimal("0")
+        pvoc_fee = self.pvoc_fee or Decimal("0")
+        if (
+            getattr(self.loading, "flow_type", None) == "lcl"
+            and self.loading.weight is not None
+        ):
+            return self.loading.weight * pvoc_fee
+        return pvoc_fee
+
 
 class Quote(models.Model):
     """Client quotation that can be converted into a cargo record + invoice.
@@ -440,6 +517,7 @@ class Quote(models.Model):
         ("accepted", "Accepted"),
         ("converted", "Converted to Invoice"),
     )
+    DOCUMENT_VERSION_CHOICES = Payment.DOCUMENT_VERSION_CHOICES
 
     client = models.ForeignKey(
         Client,
@@ -469,6 +547,15 @@ class Quote(models.Model):
     gross_weight = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
+    cargo_unit = models.CharField(
+        max_length=20, choices=Loading.CARGO_UNIT_CHOICES, default="ctn", blank=True
+    )
+    air_rate_basis = models.CharField(
+        max_length=20,
+        choices=Loading.AIR_RATE_BASIS_CHOICES,
+        default="package",
+        blank=True,
+    )
     rate_per_kg = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True
     )
@@ -477,6 +564,27 @@ class Quote(models.Model):
     )
     airline = models.CharField(max_length=255, blank=True)
     size_per_carton = models.CharField(max_length=100, blank=True)
+    payment_terms = models.CharField(max_length=100, default="", blank=True)
+    currency = models.CharField(max_length=10, default="USD", blank=True)
+    incoterm = models.CharField(max_length=100, default="", blank=True)
+    port_of_loading = models.CharField(max_length=255, default="", blank=True)
+    port_of_discharge = models.CharField(max_length=255, default="", blank=True)
+    final_destination = models.CharField(max_length=255, default="", blank=True)
+    vessel_voyage = models.CharField(max_length=255, default="", blank=True)
+    etd = models.DateTimeField(null=True, blank=True)
+    eta = models.DateTimeField(null=True, blank=True)
+    seal_number = models.CharField(max_length=100, default="", blank=True)
+    no_of_packages = models.CharField(max_length=100, default="", blank=True)
+    measurement = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    awb_number = models.CharField(max_length=100, default="", blank=True)
+    flight_date = models.DateTimeField(null=True, blank=True)
+    estimated_arrival = models.DateTimeField(null=True, blank=True)
+    chargeable_weight = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    commodity = models.CharField(max_length=255, default="", blank=True)
 
     # LCL only (CBM provided by client at quotation stage).
     cbm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -503,6 +611,12 @@ class Quote(models.Model):
     )
     amount_quoted = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    document_version = models.CharField(
+        max_length=20,
+        choices=DOCUMENT_VERSION_CHOICES,
+        default="current",
+        editable=False,
+    )
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         CustomUser, on_delete=models.PROTECT, related_name="created_quotes"
@@ -523,6 +637,9 @@ class Quote(models.Model):
         self.origin = _normalize_sentence_case(self.origin)
         self.destination = _normalize_sentence_case(self.destination)
         self.airline = _normalize_title_case(self.airline)
+        self.handling_fees = self.handling_fees or Decimal("0")
+        self.document_handling_fee = self.document_handling_fee or Decimal("0")
+        self.pvoc_fee = self.pvoc_fee or Decimal("0")
         fee = (
             self.handling_fees
             if self.cargo_type == "air_cargo"
@@ -532,8 +649,9 @@ class Quote(models.Model):
         pvoc_fee = 0 if self.cargo_type == "air_cargo" else (self.pvoc_fee or 0)
         quoted = None
         if self.cargo_type == "air_cargo":
-            if self.gross_weight is not None and self.rate_per_kg is not None:
-                quoted = (self.gross_weight * self.rate_per_kg) + fee
+            quantity = self.air_rate_quantity
+            if quantity is not None and self.rate_per_kg is not None:
+                quoted = (quantity * self.rate_per_kg) + fee
         elif (
             self.flow_type == "lcl"
             and self.rate_per_cbm is not None
@@ -547,6 +665,22 @@ class Quote(models.Model):
             self.amount_quoted = quoted
 
         super().save(*args, **kwargs)
+
+    @property
+    def air_rate_quantity(self):
+        if self.cargo_type != "air_cargo":
+            return None
+        if self.air_rate_basis == "kg":
+            return self.gross_weight
+        if self.ctns is None:
+            return None
+        return Decimal(self.ctns)
+
+    @property
+    def air_rate_unit_label(self):
+        if self.air_rate_basis == "kg":
+            return "KGS"
+        return self.get_cargo_unit_display() or "Package Type"
 
 
 class PaymentTransaction(models.Model):
@@ -568,6 +702,12 @@ class PaymentTransaction(models.Model):
     )
     reference = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
+    document_version = models.CharField(
+        max_length=20,
+        choices=Payment.DOCUMENT_VERSION_CHOICES,
+        default="current",
+        editable=False,
+    )
     verification_status = models.CharField(
         max_length=20, choices=VERIFICATION_CHOICES, default="pending"
     )

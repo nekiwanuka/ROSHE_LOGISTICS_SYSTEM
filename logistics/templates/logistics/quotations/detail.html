@@ -69,17 +69,19 @@
                     {% else %}
                     <div><strong>Flow:</strong> {{ quote.get_flow_type_display }}</div>
                     {% endif %}
+                    {% if quote.cargo_type == 'air_cargo' %}
                     <div><strong>Route:</strong> {{ quote.origin }} → {{ quote.destination }}</div>
+                    {% else %}
+                    <div><strong>Destination:</strong> {{ quote.destination }}</div>
+                    {% endif %}
                     <div><strong>Expected Loading Date:</strong> {{ quote.loading_date|date:"Y-m-d"|default:"—" }}</div>
                     {% if quote.cargo_type == 'air_cargo' %}
-                        <div><strong>CTNs:</strong> {{ quote.ctns|default:"—" }}</div>
+                        <div><strong>Package Count:</strong> {{ quote.ctns|default:"—" }} {{ quote.get_cargo_unit_display|default:"" }}</div>
                         <div><strong>Gross Weight:</strong> {{ quote.gross_weight|default:"—" }} KGS</div>
+                        <div><strong>Rate Basis:</strong> {{ quote.get_air_rate_basis_display|default:"—" }}</div>
                         <div><strong>Airline:</strong> {{ quote.airline|default:"—" }}</div>
-                        <div><strong>Size per Carton:</strong> {{ quote.size_per_carton|default:"—" }}</div>
                     {% elif quote.flow_type == 'lcl' %}
                         <div><strong>Client CBM:</strong> {{ quote.cbm|default:"—" }}</div>
-                    {% else %}
-                        <div><strong>Container Size:</strong> {{ quote.get_container_size_display|default:"—" }}</div>
                     {% endif %}
                 </div>
             </div>
@@ -114,11 +116,11 @@
                                     </td>
                                     <td class="text-end">
                                         {% if breakdown.cargo_type == 'air_cargo' %}
-                                            {{ breakdown.qty|floatformat:2 }} KGS x {{ breakdown.rate|floatformat:2 }} / KG
+                                            Qty: {{ breakdown.qty|floatformat:2 }} {{ breakdown.unit_label }} &middot; Rate: {{ breakdown.rate|floatformat:2 }}
                                         {% elif breakdown.flow == 'lcl' %}
-                                            {{ breakdown.qty|floatformat:2 }} CBM x {{ breakdown.rate|floatformat:2 }} / CBM
+                                            Per CBM
                                         {% else %}
-                                            {{ breakdown.rate|floatformat:2 }} / Container
+                                            Per Container
                                         {% endif %}
                                     </td>
                                     <td class="text-end">{% if breakdown.freight_amount is not None %}{{ breakdown.freight_amount|floatformat:2 }}{% else %}—{% endif %}</td>
@@ -129,25 +131,6 @@
                                     <td>{% if breakdown.cargo_type == 'air_cargo' %}HANDLING FEES{% else %}DOCUMENTS FEE{% endif %}</td>
                                     <td class="text-end">Flat charge</td>
                                     <td class="text-end">{{ breakdown.fee|floatformat:2 }}</td>
-                                </tr>
-                                {% endif %}
-                                {% if breakdown.pvoc_total and breakdown.pvoc_total > 0 %}
-                                <tr>
-                                    <td class="text-center fw-semibold">{% if breakdown.fee and breakdown.fee > 0 %}3{% else %}2{% endif %}</td>
-                                    <td>
-                                        PVOC
-                                        {% if breakdown.flow == 'lcl' %}
-                                            <div class="text-muted small">{{ quote.cbm|floatformat:2 }} CBM x {{ breakdown.pvoc_rate|floatformat:2 }}</div>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
-                                        {% if breakdown.flow == 'lcl' %}
-                                            {{ quote.cbm|floatformat:2 }} CBM x {{ breakdown.pvoc_rate|floatformat:2 }} / CBM
-                                        {% else %}
-                                            {{ breakdown.pvoc_rate|floatformat:2 }} / Container
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">{{ breakdown.pvoc_total|floatformat:2 }}</td>
                                 </tr>
                                 {% endif %}
                             </tbody>
@@ -171,12 +154,15 @@
                                 {% if quote.status != 'accepted' %}
                                     <div class="alert alert-warning mb-2">Mark this quote as <strong>Accepted</strong> before converting to an invoice.</div>
                                 {% endif %}
-                            <form method="post" action="{% url 'quote_convert_to_invoice' quote.id %}">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-primary" {% if quote.status != 'accepted' %}disabled{% endif %}>
+                            {% if quote.status == 'accepted' %}
+                                <a href="{% url 'quote_convert_to_invoice' quote.id %}" class="btn btn-primary">
+                                    <i class="bi bi-arrow-repeat"></i> Convert to Invoice
+                                </a>
+                            {% else %}
+                                <button type="button" class="btn btn-primary" disabled>
                                     <i class="bi bi-arrow-repeat"></i> Convert to Invoice
                                 </button>
-                            </form>
+                            {% endif %}
                             {% else %}
                             <div class="alert alert-info mb-0">This quotation has already been converted to an invoice.</div>
                             {% endif %}

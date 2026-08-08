@@ -56,7 +56,7 @@
                         <ul class="list-group list-group-flush">
                             {% for item in results.loadings %}
                                 <li class="list-group-item px-0">
-                                    <a href="{% url 'loading_detail' item.id %}">{{ item.container_number }}</a> - {{ item.client.name }}
+                                    <a href="{% url 'loading_detail' item.id %}">{% if item.cargo_type == 'air_cargo' %}{{ item.item_number|default:'Air Cargo' }}{% else %}{{ item.container_number }}{% endif %}</a> - {{ item.client.name }}
                                 </li>
                             {% endfor %}
                         </ul>
@@ -100,7 +100,7 @@
                         <ul class="list-group list-group-flush">
                             {% for item in results.payments %}
                                 <li class="list-group-item px-0">
-                                    <a href="{% url 'payment_detail' item.id %}">Invoice {{ item.invoice_number }}</a> - {{ item.loading.container_number }}
+                                    <a href="{% url 'payment_detail' item.id %}">Invoice {{ item.invoice_number }}</a> - {% if item.loading.cargo_type == 'air_cargo' %}{{ item.loading.item_number|default:'Air Cargo' }}{% else %}{{ item.loading.container_number }}{% endif %}
                                 </li>
                             {% endfor %}
                         </ul>
@@ -122,7 +122,7 @@
                         <ul class="list-group list-group-flush">
                             {% for item in results.receipts %}
                                 <li class="list-group-item px-0">
-                                    <a href="{% url 'payment_detail' item.payment_id %}">{{ item.receipt_number }}</a> - {{ item.payment.loading.container_number }}
+                                    <a href="{% url 'payment_detail' item.payment_id %}">{{ item.receipt_number }}</a> - {% if item.payment.loading.cargo_type == 'air_cargo' %}{{ item.payment.loading.item_number|default:'Air Cargo' }}{% else %}{{ item.payment.loading.container_number }}{% endif %}
                                 </li>
                             {% endfor %}
                         </ul>
@@ -144,7 +144,7 @@
                         <ul class="list-group list-group-flush">
                             {% for item in results.quotes %}
                                 <li class="list-group-item px-0">
-                                    <a href="{% url 'quote_detail' item.id %}">QTN-{{ item.id|stringformat:'05d' }}</a> - {{ item.container_number|default:'-' }}
+                                    <a href="{% url 'quote_detail' item.id %}">QTN-{{ item.id|stringformat:'05d' }}</a> - {% if item.cargo_type == 'air_cargo' %}{{ item.item_number|default:'Air Cargo' }}{% else %}{{ item.container_number|default:'-' }}{% endif %}
                                 </li>
                             {% endfor %}
                         </ul>

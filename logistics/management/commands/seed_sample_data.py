@@ -106,6 +106,7 @@ class Command(BaseCommand):
             "[SAMPLE_DATA] Household merchandise",
         ]
         airlines = ["Emirates SkyCargo", "Ethiopian Cargo", "Qatar Airways Cargo"]
+        units = ["ctn", "package", "parcel", "pack", "set"]
         statuses = ["draft", "sent", "accepted"]
 
         created = []
@@ -131,6 +132,8 @@ class Command(BaseCommand):
                 document_fee = Decimal("0.00")
                 pvoc_fee = Decimal("0.00")
                 gross_weight = Decimal(str(round(random.uniform(40.0, 450.0), 2)))
+                cargo_unit = random.choice(units)
+                air_rate_basis = "kg" if i % 8 == 0 else "package"
                 rate_per_kg = Decimal(str(round(random.uniform(3.5, 8.5), 2)))
                 handling_fees = fee or Decimal("35.00")
                 item_number = f"AIR-{now:%y%m}-{i + 1:03d}"
@@ -139,42 +142,41 @@ class Command(BaseCommand):
                 size_per_carton = random.choice(
                     ["45x35x30 cm", "60x40x40 cm", "Assorted cartons"]
                 )
+                awb_number = f"784-{random.randint(10000000, 99999999)}"
             elif flow_type == "lcl":
                 cbm = Decimal(str(round(random.uniform(1.0, 30.0), 2)))
                 rate_cbm = Decimal(str(round(random.uniform(60, 120), 2)))
                 rate_container = None
                 container_size = None
                 document_fee = fee
-                pvoc_fee = (
-                    Decimal(str(round(random.uniform(1.0, 4.0), 2)))
-                    if i % 2
-                    else Decimal("0.00")
-                )
+                pvoc_fee = Decimal("0.00")
                 gross_weight = None
+                cargo_unit = "ctn"
+                air_rate_basis = "package"
                 rate_per_kg = None
                 handling_fees = Decimal("0.00")
                 item_number = ""
                 ctns = None
                 airline = ""
                 size_per_carton = ""
+                awb_number = ""
             else:
                 cbm = None
                 rate_cbm = None
                 rate_container = Decimal(str(round(random.uniform(900, 1800), 2)))
-                container_size = random.choice(["20ft", "40ft"])
+                container_size = ""
                 document_fee = fee
-                pvoc_fee = (
-                    Decimal(str(round(random.uniform(15.0, 45.0), 2)))
-                    if i % 2 == 0
-                    else Decimal("0.00")
-                )
+                pvoc_fee = Decimal("0.00")
                 gross_weight = None
+                cargo_unit = "set"
+                air_rate_basis = "package"
                 rate_per_kg = None
                 handling_fees = Decimal("0.00")
                 item_number = ""
                 ctns = None
                 airline = ""
                 size_per_carton = ""
+                awb_number = ""
 
             quote = Quote.objects.create(
                 client=client,
@@ -189,10 +191,36 @@ class Command(BaseCommand):
                 item_description=item_description,
                 ctns=ctns,
                 gross_weight=gross_weight,
+                cargo_unit=cargo_unit,
+                air_rate_basis=air_rate_basis,
                 rate_per_kg=rate_per_kg,
                 handling_fees=handling_fees,
                 airline=airline,
                 size_per_carton=size_per_carton,
+                payment_terms=(
+                    "100% Before Delivery"
+                    if cargo_type == "air_cargo"
+                    else "100% Before Shipment"
+                ),
+                currency="USD",
+                incoterm="",
+                port_of_loading="",
+                port_of_discharge="",
+                final_destination="",
+                vessel_voyage="",
+                etd=None,
+                eta=None,
+                seal_number="",
+                no_of_packages="",
+                measurement=None,
+                awb_number=awb_number,
+                flight_date=loading_date if cargo_type == "air_cargo" else None,
+                estimated_arrival=(
+                    loading_date + timezone.timedelta(days=3)
+                    if cargo_type == "air_cargo"
+                    else None
+                ),
+                commodity=item_description.replace("[SAMPLE_DATA] ", ""),
                 cbm=cbm,
                 rate_per_cbm=rate_cbm,
                 rate_per_container=rate_container,
@@ -280,6 +308,7 @@ class Command(BaseCommand):
             "OOLU9988776",
             "CMAU1122334",
         ]
+        units = ["ctn", "package", "parcel", "pack", "set"]
         created = []
         now = timezone.now()
         for i in range(count):
@@ -300,6 +329,8 @@ class Command(BaseCommand):
                 item_description = "[SAMPLE_DATA] Air cargo merchandise"
                 ctns = random.randint(5, 80)
                 gross_weight = Decimal(str(round(random.uniform(35.0, 500.0), 2)))
+                cargo_unit = random.choice(units)
+                air_rate_basis = "kg" if i % 10 == 0 else "package"
                 rate_per_kg = Decimal(str(round(random.uniform(3.5, 8.5), 2)))
                 handling_fees = Decimal(str(round(random.uniform(20.0, 75.0), 2)))
                 airline = random.choice(
@@ -308,6 +339,8 @@ class Command(BaseCommand):
                 size_per_carton = random.choice(
                     ["45x35x30 cm", "60x40x40 cm", "Assorted cartons"]
                 )
+                no_of_packages = str(ctns)
+                measurement = None
             elif flow_type == "fcl":
                 container_number = random.choice(container_numbers) + str(i % 10)
                 container_size = random.choice(["20ft", "40ft"])
@@ -316,10 +349,14 @@ class Command(BaseCommand):
                 item_description = "[SAMPLE_DATA] Full container goods"
                 ctns = None
                 gross_weight = None
+                cargo_unit = "set"
+                air_rate_basis = "package"
                 rate_per_kg = None
                 handling_fees = Decimal("0.00")
                 airline = ""
                 size_per_carton = ""
+                no_of_packages = f"{random.randint(80, 260)} Packages"
+                measurement = Decimal(str(round(random.uniform(20.0, 65.0), 2)))
             else:
                 container_number = random.choice(container_numbers) + str(i % 10)
                 container_size = ""
@@ -328,10 +365,14 @@ class Command(BaseCommand):
                 item_description = "[SAMPLE_DATA] LCL consolidated goods"
                 ctns = None
                 gross_weight = None
+                cargo_unit = "ctn"
+                air_rate_basis = "package"
                 rate_per_kg = None
                 handling_fees = Decimal("0.00")
                 airline = ""
                 size_per_carton = ""
+                no_of_packages = f"{random.randint(10, 180)} CTN"
+                measurement = cbm
 
             loading = Loading.objects.create(
                 flow_type=flow_type,
@@ -343,10 +384,52 @@ class Command(BaseCommand):
                 ctns=ctns,
                 weight=cbm,
                 gross_weight=gross_weight,
+                cargo_unit=cargo_unit,
+                air_rate_basis=air_rate_basis,
                 rate_per_kg=rate_per_kg,
                 handling_fees=handling_fees,
                 airline=airline,
                 size_per_carton=size_per_carton,
+                payment_terms=(
+                    "100% Before Delivery"
+                    if cargo_type == "air_cargo"
+                    else "100% Before Shipment"
+                ),
+                currency="USD",
+                incoterm="" if cargo_type == "air_cargo" else "FOB Guangzhou, China",
+                port_of_loading=origin if cargo_type == "freight_cargo" else "",
+                port_of_discharge=(
+                    "Mombasa, Kenya" if cargo_type == "freight_cargo" else ""
+                ),
+                final_destination=destination,
+                vessel_voyage=(
+                    random.choice(
+                        ["COSCO SHIPPING / 123S", "MSC / 908E", "MAERSK / 442W"]
+                    )
+                    if cargo_type == "freight_cargo"
+                    else ""
+                ),
+                etd=loading_date if cargo_type == "freight_cargo" else None,
+                eta=(
+                    loading_date + timezone.timedelta(days=14)
+                    if cargo_type == "freight_cargo"
+                    else None
+                ),
+                seal_number="TBC" if cargo_type == "freight_cargo" else "",
+                no_of_packages=no_of_packages,
+                measurement=measurement,
+                awb_number=(
+                    f"784-{random.randint(10000000, 99999999)}"
+                    if cargo_type == "air_cargo"
+                    else ""
+                ),
+                flight_date=loading_date if cargo_type == "air_cargo" else None,
+                estimated_arrival=(
+                    loading_date + timezone.timedelta(days=3)
+                    if cargo_type == "air_cargo"
+                    else None
+                ),
+                commodity=item_description.replace("[SAMPLE_DATA] ", ""),
                 container_number=container_number,
                 container_size=container_size,
                 origin=origin,
@@ -407,7 +490,7 @@ class Command(BaseCommand):
                     if i % 2
                     else Decimal("0.00")
                 )
-                pvoc_fee = (loading.weight or Decimal("0.00")) * pvoc_rate
+                pvoc_fee = pvoc_rate
             else:
                 rate_cbm = None
                 rate_container = Decimal(str(round(random.uniform(900, 1800), 2)))

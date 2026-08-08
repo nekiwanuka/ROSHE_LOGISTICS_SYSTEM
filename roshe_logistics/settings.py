@@ -2,6 +2,7 @@
 Django settings for roshe_logistics project.
 Roshe Logistics Management System (Web)
 """
+
 import sys
 from pathlib import Path
 from decouple import AutoConfig, Config, Csv, RepositoryEnv
@@ -64,7 +65,9 @@ _allowed_hosts_raw = config("DJANGO_ALLOWED_HOSTS", default="").strip()
 if not _allowed_hosts_raw:
     _allowed_hosts_raw = config("ALLOWED_HOSTS", default="localhost,127.0.0.1").strip()
 
-ALLOWED_HOSTS = [host.strip() for host in Csv()(_allowed_hosts_raw) if host and host.strip()]
+ALLOWED_HOSTS = [
+    host.strip() for host in Csv()(_allowed_hosts_raw) if host and host.strip()
+]
 
 _local_dev_hosts = ["localhost", "127.0.0.1", "[::1]"]
 
@@ -81,49 +84,50 @@ if "runserver" in sys.argv:
 
 # Application definition
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django.contrib.humanize',
-    'logistics',  # Our main app
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.humanize",
+    "logistics",  # Our main app
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'logistics.middleware.AbsoluteSessionExpiryMiddleware',
-    'logistics.middleware.BlockAdminForManagingDirectorMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "logistics.middleware.GenericNotFoundMiddleware",
+    "logistics.middleware.AbsoluteSessionExpiryMiddleware",
+    "logistics.middleware.BlockAdminForManagingDirectorMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'roshe_logistics.urls'
+ROOT_URLCONF = "roshe_logistics.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'logistics' / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'logistics.context_processors.app_permissions',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "logistics" / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+                "logistics.context_processors.app_permissions",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'roshe_logistics.wsgi.application'
+WSGI_APPLICATION = "roshe_logistics.wsgi.application"
 
 # Sessions
 # Logout users after 1 hour (absolute expiry from login by default).
@@ -146,9 +150,9 @@ elif DB_ENGINE == "django.db.backends.sqlite3":
 
 def _sqlite_databases():
     return {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': config("SQLITE_PATH", default=str(BASE_DIR / 'db.sqlite3')),
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": config("SQLITE_PATH", default=str(BASE_DIR / "db.sqlite3")),
         }
     }
 
@@ -169,25 +173,25 @@ def _postgres_databases():
         _host = "127.0.0.1"
 
     return {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': config("DB_NAME", default="").strip(),
-            'USER': config("DB_USER", default="").strip(),
-            'PASSWORD': config("DB_PASSWORD", default=""),
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME", default="").strip(),
+            "USER": config("DB_USER", default="").strip(),
+            "PASSWORD": config("DB_PASSWORD", default=""),
             # Empty HOST means UNIX socket (valid on Linux).
-            'HOST': _host,
-            'PORT': config("DB_PORT", default="5432").strip(),
-            'OPTIONS': _options,
+            "HOST": _host,
+            "PORT": config("DB_PORT", default="5432").strip(),
+            "OPTIONS": _options,
         }
     }
 
 
 def _postgres_is_reachable(postgres_settings: dict) -> bool:
-    name = postgres_settings.get('NAME')
-    user = postgres_settings.get('USER')
-    password = postgres_settings.get('PASSWORD')
-    host = postgres_settings.get('HOST')
-    port = postgres_settings.get('PORT')
+    name = postgres_settings.get("NAME")
+    user = postgres_settings.get("USER")
+    password = postgres_settings.get("PASSWORD")
+    host = postgres_settings.get("HOST")
+    port = postgres_settings.get("PORT")
 
     # NOTE: host may legitimately be empty (UNIX socket).
     if not (name and user and password and port):
@@ -270,11 +274,11 @@ def _skip_db_connectivity_probe() -> bool:
 
 
 if DB_ENGINE in {"postgres", "postgresql", "psql"}:
-    _pg = _postgres_databases()['default']
+    _pg = _postgres_databases()["default"]
     if _skip_db_connectivity_probe():
-        DATABASES = {'default': _pg}
+        DATABASES = {"default": _pg}
     elif _postgres_is_reachable(_pg):
-        DATABASES = {'default': _pg}
+        DATABASES = {"default": _pg}
     else:
         if _should_fallback_to_sqlite():
             print(
@@ -295,9 +299,7 @@ if not _csrf_raw:
     _csrf_raw = config("CSRF_TRUSTED_ORIGINS", default="").strip()
 
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in Csv()(_csrf_raw)
-    if origin and origin.strip()
+    origin.strip() for origin in Csv()(_csrf_raw) if origin and origin.strip()
 ]
 
 # If you run behind a reverse proxy (nginx) terminating TLS, set this in .env:
@@ -312,32 +314,34 @@ if _proxy_header:
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = config('DJANGO_TIME_ZONE', default='Africa/Kampala').strip() or 'Africa/Kampala'
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = (
+    config("DJANGO_TIME_ZONE", default="Africa/Kampala").strip() or "Africa/Kampala"
+)
 USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Serve static files directly from the Django app (useful on cPanel/Passenger
 # where configuring webserver aliases for /static/ isn't always straightforward).
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # NOTE:
 # The `logistics` app already provides its static assets under `logistics/static/`.
@@ -346,96 +350,98 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Only add STATICFILES_DIRS if you create a separate, non-app static folder.
 
 # Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom User Model
-AUTH_USER_MODEL = 'logistics.CustomUser'
+AUTH_USER_MODEL = "logistics.CustomUser"
 
 # Login URL
-LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'dashboard'
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "dashboard"
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_SAVE_EVERY_REQUEST = False
 
 # Logging Configuration
-_log_path = BASE_DIR / 'logistics.log'
+_log_path = BASE_DIR / "logistics.log"
 _can_write_log_file = True
 try:
     _log_path.parent.mkdir(parents=True, exist_ok=True)
-    with _log_path.open('a', encoding='utf-8'):
+    with _log_path.open("a", encoding="utf-8"):
         pass
 except Exception:
     _can_write_log_file = False
 
 if _can_write_log_file:
     LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'file': {
-                'level': 'INFO',
-                'class': 'logging.FileHandler',
-                'filename': _log_path,
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": _log_path,
             },
         },
-        'root': {
-            'handlers': ['file'],
-            'level': 'INFO',
+        "root": {
+            "handlers": ["file"],
+            "level": "INFO",
         },
     }
 else:
     # Fall back to stderr if file logging isn't possible on the host.
     LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'console': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
             },
         },
-        'root': {
-            'handlers': ['console'],
-            'level': 'INFO',
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
         },
     }
 
 # Email (SMTP)
 # Configure these in your .env / cPanel environment variables.
 # cPanel mail commonly uses SSL on port 465.
-EMAIL_HOST = config('EMAIL_HOST', default='').strip()
-EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
+EMAIL_HOST = config("EMAIL_HOST", default="").strip()
+EMAIL_PORT = config("EMAIL_PORT", default=465, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="").strip()
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=True, cast=bool)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=False, cast=bool)
 
 DEFAULT_FROM_EMAIL = config(
-    'DEFAULT_FROM_EMAIL',
-    default=(EMAIL_HOST_USER or 'ROSHE LOGISTICS <no-reply@localhost>'),
+    "DEFAULT_FROM_EMAIL",
+    default=(EMAIL_HOST_USER or "ROSHE LOGISTICS <no-reply@localhost>"),
 ).strip()
-SERVER_EMAIL = config('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL).strip() or DEFAULT_FROM_EMAIL
+SERVER_EMAIL = (
+    config("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL).strip() or DEFAULT_FROM_EMAIL
+)
 
 # If no SMTP host is configured, fall back to console backend.
 EMAIL_BACKEND = config(
-    'EMAIL_BACKEND',
+    "EMAIL_BACKEND",
     default=(
-        'django.core.mail.backends.smtp.EmailBackend'
+        "django.core.mail.backends.smtp.EmailBackend"
         if EMAIL_HOST
-        else 'django.core.mail.backends.console.EmailBackend'
+        else "django.core.mail.backends.console.EmailBackend"
     ),
 )
 
 # Some hosting environments have broken IPv6 egress and can raise
 # OSError: [Errno 99] Cannot assign requested address when smtplib
 # attempts an IPv6 connection first. Enable this to prefer IPv4.
-EMAIL_PREFER_IPV4 = config('EMAIL_PREFER_IPV4', default=False, cast=bool)
+EMAIL_PREFER_IPV4 = config("EMAIL_PREFER_IPV4", default=False, cast=bool)
 if EMAIL_PREFER_IPV4:
     import socket
 
@@ -453,9 +459,13 @@ if EMAIL_PREFER_IPV4:
 # Modes:
 # - link: opens wa.me links in browser (default)
 # - api: sends PDFs through WhatsApp Business Cloud API
-WHATSAPP_MODE = config('WHATSAPP_MODE', default='link').strip().lower() or 'link'
-WHATSAPP_API_BASE_URL = config('WHATSAPP_API_BASE_URL', default='').strip()
-WHATSAPP_API_VERSION = config('WHATSAPP_API_VERSION', default='v21.0').strip() or 'v21.0'
-WHATSAPP_API_TOKEN = config('WHATSAPP_API_TOKEN', default='').strip()
-WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='').strip()
-WHATSAPP_WEBHOOK_VERIFY_TOKEN = config('WHATSAPP_WEBHOOK_VERIFY_TOKEN', default='').strip()
+WHATSAPP_MODE = config("WHATSAPP_MODE", default="link").strip().lower() or "link"
+WHATSAPP_API_BASE_URL = config("WHATSAPP_API_BASE_URL", default="").strip()
+WHATSAPP_API_VERSION = (
+    config("WHATSAPP_API_VERSION", default="v21.0").strip() or "v21.0"
+)
+WHATSAPP_API_TOKEN = config("WHATSAPP_API_TOKEN", default="").strip()
+WHATSAPP_PHONE_NUMBER_ID = config("WHATSAPP_PHONE_NUMBER_ID", default="").strip()
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = config(
+    "WHATSAPP_WEBHOOK_VERIFY_TOKEN", default=""
+).strip()

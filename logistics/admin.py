@@ -77,6 +77,7 @@ class LoadingAdmin(admin.ModelAdmin):
         "destination",
         "ctns",
         "gross_weight",
+        "air_rate_basis",
         "rate_per_kg",
         "airline",
     )
@@ -147,6 +148,7 @@ class QuoteAdmin(admin.ModelAdmin):
         "cargo_type",
         "flow_type",
         "amount_quoted",
+        "air_rate_basis",
         "status",
         "created_at",
     )

@@ -59,7 +59,13 @@
                     {% for receipt in receipts %}
                     <tr>
                         <td><strong>{{ receipt.receipt_number }}</strong></td>
-                        <td>{{ receipt.payment.loading.container_number }}</td>
+                        <td>
+                            {% if receipt.payment.loading.cargo_type == 'air_cargo' %}
+                                {{ receipt.payment.loading.item_number|default:'Air Cargo' }}
+                            {% else %}
+                                {{ receipt.payment.loading.container_number }}
+                            {% endif %}
+                        </td>
                         <td>{{ receipt.payment.loading.client.name }}</td>
                         <td>${{ receipt.amount|floatformat:2 }}</td>
                         <td>{{ receipt.payment_date|date:"Y-m-d H:i" }}</td>

@@ -1,0 +1,176 @@
+{% extends "logistics/base.html" %}
+
+{% block title %}{{ title }} - ROSHE LOGISTICS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="bi bi-arrow-repeat"></i> {{ title }}</h1>
+            <div class="text-muted">{{ quote.quote_number }} - {{ quote.client.name }}</div>
+        </div>
+        <a href="{% url 'quote_detail' quote.id %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Quote
+        </a>
+    </div>
+
+    <div class="alert alert-info d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            {% if quote.cargo_type == 'air_cargo' %}
+                Review or update the air shipment details below. Your changes will be saved on the quotation and used for the new invoice.
+            {% else %}
+                Review or update the quotation details, then enter the invoice-specific shipment and charge details. Your updates will be saved on the quotation and used for the new invoice.
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-warning">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        {% if quote.cargo_type == 'air_cargo' %}
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <strong>Air Cargo Details</strong>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Item Number</label>{{ form.item_number }}{% if form.item_number.errors %}<div class="text-danger small">{{ form.item_number.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Package Count</label>{{ form.ctns }}{% if form.ctns.errors %}<div class="text-danger small">{{ form.ctns.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Package Type</label>{{ form.cargo_unit }}{% if form.cargo_unit.errors %}<div class="text-danger small">{{ form.cargo_unit.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Gross Weight (KGS)</label>{{ form.gross_weight }}{% if form.gross_weight.errors %}<div class="text-danger small">{{ form.gross_weight.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Rate Basis</label>{{ form.air_rate_basis }}{% if form.air_rate_basis.errors %}<div class="text-danger small">{{ form.air_rate_basis.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Rate</label>{{ form.rate_per_kg }}{% if form.rate_per_kg.errors %}<div class="text-danger small">{{ form.rate_per_kg.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Handling Fees</label>{{ form.handling_fees }}{% if form.handling_fees.errors %}<div class="text-danger small">{{ form.handling_fees.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Airline</label>{{ form.airline }}{% if form.airline.errors %}<div class="text-danger small">{{ form.airline.errors }}</div>{% endif %}</div>
+                    <div class="col-md-8"><label class="form-label">Description <span class="text-muted">(optional)</span></label>{{ form.item_description }}{% if form.item_description.errors %}<div class="text-danger small">{{ form.item_description.errors }}</div>{% endif %}</div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <strong>Quotation Details</strong>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3"><span class="text-muted d-block">Cargo Type</span><strong>{{ quote.get_cargo_type_display }}</strong></div>
+                    <div class="col-md-3"><span class="text-muted d-block">Flow Type</span><strong>{{ quote.get_flow_type_display }}</strong></div>
+                    <div class="col-md-3"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
+                    <div class="col-md-3"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <strong>Shipment Details</strong>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Container No.</label>
+                        {{ form.container_number }}
+                        {% if form.container_number.errors %}<div class="text-danger small">{{ form.container_number.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Container Type</label>
+                        {{ form.container_size }}
+                        {% if form.container_size.errors %}<div class="text-danger small">{{ form.container_size.errors }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Port of Loading</label>
+                        {{ form.port_of_loading }}
+                        {% if form.port_of_loading.errors %}<div class="text-danger small">{{ form.port_of_loading.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Port of Discharge</label>
+                        {{ form.port_of_discharge }}
+                        {% if form.port_of_discharge.errors %}<div class="text-danger small">{{ form.port_of_discharge.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Final Destination</label>
+                        {{ form.final_destination }}
+                        {% if form.final_destination.errors %}<div class="text-danger small">{{ form.final_destination.errors }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Vessel / Voyage</label>
+                        {{ form.vessel_voyage }}
+                        {% if form.vessel_voyage.errors %}<div class="text-danger small">{{ form.vessel_voyage.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">ETD</label>
+                        {{ form.etd }}
+                        {% if form.etd.errors %}<div class="text-danger small">{{ form.etd.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">ETA</label>
+                        {{ form.eta }}
+                        {% if form.eta.errors %}<div class="text-danger small">{{ form.eta.errors }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Measurement / CBM</label>
+                        {{ form.measurement }}
+                        {% if form.measurement.errors %}<div class="text-danger small">{{ form.measurement.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Incoterm</label>
+                        {{ form.incoterm }}
+                        {% if form.incoterm.errors %}<div class="text-danger small">{{ form.incoterm.errors }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <strong>Invoice Charges</strong>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Rate per CBM</label>
+                        {{ form.rate_per_cbm }}
+                        {% if form.rate_per_cbm.errors %}<div class="text-danger small">{{ form.rate_per_cbm.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Rate per Container</label>
+                        {{ form.rate_per_container }}
+                        {% if form.rate_per_container.errors %}<div class="text-danger small">{{ form.rate_per_container.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Document & Handling Fee</label>
+                        {{ form.document_handling_fee }}
+                        {% if form.document_handling_fee.errors %}<div class="text-danger small">{{ form.document_handling_fee.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">PVOC Fee</label>
+                        {{ form.pvoc_fee }}
+                        <div class="form-text">For LCL, enter PVOC per CBM.</div>
+                        {% if form.pvoc_fee.errors %}<div class="text-danger small">{{ form.pvoc_fee.errors }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="d-flex gap-2 mb-4">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-file-earmark-check"></i> Create Invoice
+            </button>
+            <a href="{% url 'quote_detail' quote.id %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,7 +1,20 @@
 from django.contrib import messages
 from django.contrib.auth import logout
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.utils import timezone
+
+
+class GenericNotFoundMiddleware:
+    """Replace technical 404 responses with the public not-found page."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if response.status_code == 404:
+            return render(request, "404.html", status=404)
+        return response
 
 
 class BlockAdminForManagingDirectorMiddleware:
@@ -14,7 +27,10 @@ class BlockAdminForManagingDirectorMiddleware:
         path = (getattr(request, "path_info", None) or request.path or "").lower()
         if path.startswith("/admin"):
             user = getattr(request, "user", None)
-            if getattr(user, "is_authenticated", False) and getattr(user, "role", None) == "managing_director":
+            if (
+                getattr(user, "is_authenticated", False)
+                and getattr(user, "role", None) == "managing_director"
+            ):
                 # System admin (true Django superuser) is not blocked.
                 if not getattr(user, "is_superuser", False):
                     messages.error(request, "Permission denied")

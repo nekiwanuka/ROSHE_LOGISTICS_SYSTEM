@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Page Not Found | ROSHE LOGISTICS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #003366;
+            --gold: #f2cb3f;
+            --ink: #17212b;
+            --muted: #5e6b78;
+            --surface: #ffffff;
+            --ground: #eef3f6;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            color: var(--ink);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                linear-gradient(135deg, transparent 0 48%, rgba(242, 203, 63, 0.18) 48% 50%, transparent 50% 100%),
+                var(--ground);
+        }
+
+        main {
+            width: min(100%, 580px);
+            border-top: 6px solid var(--gold);
+            padding: clamp(32px, 7vw, 64px);
+            text-align: center;
+            background: var(--surface);
+            box-shadow: 0 20px 55px rgba(0, 35, 70, 0.14);
+        }
+
+        .mark {
+            width: 58px;
+            height: 58px;
+            display: inline-grid;
+            place-items: center;
+            margin-bottom: 24px;
+            color: var(--navy);
+            font-size: 1.8rem;
+            background: rgba(242, 203, 63, 0.26);
+            border-radius: 50%;
+        }
+
+        .code {
+            margin: 0;
+            color: var(--navy);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+        }
+
+        h1 {
+            margin: 12px 0;
+            color: var(--navy);
+            font-size: clamp(2rem, 7vw, 3.25rem);
+        }
+
+        p {
+            max-width: 400px;
+            margin: 0 auto 28px;
+            color: var(--muted);
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 46px;
+            padding: 0 20px;
+            color: #ffffff;
+            font-weight: 700;
+            text-decoration: none;
+            background: var(--navy);
+            border-radius: 4px;
+        }
+
+        a:hover, a:focus-visible { background: #001f4d; }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="mark" aria-hidden="true"><i class="bi bi-signpost-split"></i></div>
+        <p class="code">ERROR 404</p>
+        <h1>Page not found</h1>
+        <p>The address you entered is not available. Return to the logistics portal to continue.</p>
+        <a href="/"><i class="bi bi-arrow-left"></i> Return to Portal</a>
+    </main>
+</body>
+</html>
