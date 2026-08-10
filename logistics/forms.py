@@ -733,7 +733,6 @@ class LoadingForm(forms.ModelForm):
             cleaned["gross_weight"] = None
             cleaned["seal_number"] = ""
             cleaned["no_of_packages"] = ""
-            cleaned["commodity"] = ""
             self.instance.item_number = ""
             self.instance.rate_per_kg = None
             self.instance.air_rate_basis = "package"
@@ -743,7 +742,6 @@ class LoadingForm(forms.ModelForm):
             self.instance.gross_weight = None
             self.instance.seal_number = ""
             self.instance.no_of_packages = ""
-            self.instance.commodity = ""
             if not (cleaned.get("origin") or "").strip():
                 self.add_error("origin", "Origin is required for Freight Cargo.")
             if not (container_number or "").strip():

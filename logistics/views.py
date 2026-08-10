@@ -2115,14 +2115,14 @@ def payment_invoice(request, pk):
         cargo_detail_rows = [
             ["SHIPMENT DETAILS", "", "", ""],
             [
-                "Port of Loading",
-                _display(loading.port_of_loading),
-                "Port of Discharge",
-                _display(loading.port_of_discharge),
+                "Origin",
+                _display(loading.origin),
+                "Destination",
+                _display(loading.destination),
             ],
             [
-                "Final Destination",
-                _display(loading.final_destination or loading.destination),
+                "Container Type",
+                loading.get_container_size_display() if loading.container_size else "—",
                 "Vessel / Voyage",
                 _display(loading.vessel_voyage),
             ],
@@ -2133,25 +2133,15 @@ def payment_invoice(request, pk):
                 _fmt_date(loading.eta),
             ],
             [
-                "Container Type",
-                loading.get_container_size_display() if loading.container_size else "—",
                 "Container No.",
                 loading.container_number or "TBC",
-            ],
-            [
-                "Measurement",
-                (
-                    f"{(loading.measurement or loading.weight):.2f} CBM"
-                    if (loading.measurement is not None or loading.weight is not None)
-                    else "—"
-                ),
-                "",
+                "Cargo Type",
+                _display(loading.commodity),
                 "",
             ],
         ]
         cargo_detail_spans = [
             ("SPAN", (0, 0), (-1, 0)),
-            ("SPAN", (1, 5), (-1, 5)),
         ]
         cargo_detail_col_widths = [
             doc.width * 0.16,
@@ -2195,23 +2185,38 @@ def payment_invoice(request, pk):
     )
     cargo_details_table.setStyle(TableStyle(cargo_detail_styles))
 
+    card_style = TableStyle(
+        [
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]
+    )
+    bill_to_card = Table(
+        [[bill_to]], colWidths=[doc.width * 0.47], cornerRadii=(6, 6, 6, 6)
+    )
+    bill_to_card.setStyle(card_style)
+    invoice_meta_card = Table(
+        [[invoice_meta]], colWidths=[doc.width * 0.47], cornerRadii=(6, 6, 6, 6)
+    )
+    invoice_meta_card.setStyle(card_style)
     info_table = Table(
-        [[bill_to, invoice_meta]],
-        colWidths=[doc.width * 0.55, doc.width * 0.45],
+        [[bill_to_card, "", invoice_meta_card]],
+        colWidths=[doc.width * 0.47, doc.width * 0.06, doc.width * 0.47],
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     info_table.setStyle(
         TableStyle(
             [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
-                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )

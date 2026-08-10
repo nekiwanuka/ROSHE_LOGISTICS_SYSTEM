@@ -165,10 +165,15 @@
                                     {% if form.gross_weight.errors %}<div class="text-danger">{{ form.gross_weight.errors }}</div>{% endif %}
                                     <p class="field-hint">Required for every air cargo item and always measured in KGS.</p>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 air-cargo-field" id="field-cargo-unit">
                                     <label for="{{ form.cargo_unit.id_for_label }}" class="form-label">Package Type</label>
                                     {{ form.cargo_unit }}
                                     {% if form.cargo_unit.errors %}<div class="text-danger">{{ form.cargo_unit.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6 freight-cargo-field" id="field-commodity">
+                                    <label for="{{ form.commodity.id_for_label }}" class="form-label">Cargo Type <span class="text-muted">(optional)</span></label>
+                                    {{ form.commodity }}
+                                    {% if form.commodity.errors %}<div class="text-danger">{{ form.commodity.errors }}</div>{% endif %}
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
                                     <label for="{{ form.air_rate_basis.id_for_label }}" class="form-label">Rate Basis</label>
@@ -278,6 +283,7 @@
             var containerSizeField = document.getElementById('field-container-size');
             var originField = document.getElementById('field-origin');
             var airFields = document.querySelectorAll('.air-cargo-field');
+            var freightFields = document.querySelectorAll('.freight-cargo-field');
 
             var weightInput = document.getElementById('id_weight');
             var originInput = document.getElementById('id_origin');
@@ -301,6 +307,7 @@
             if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
             if (originField) originField.style.display = '';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
+            freightFields.forEach(function(field) { field.style.display = isAirCargo ? 'none' : ''; });
             if (createInvoiceOption) createInvoiceOption.style.display = isAirCargo ? '' : 'none';
             if (!isAirCargo && createInvoiceInput) createInvoiceInput.checked = false;
 
