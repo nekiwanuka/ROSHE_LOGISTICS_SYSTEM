@@ -2137,7 +2137,6 @@ def payment_invoice(request, pk):
                 loading.container_number or "TBC",
                 "Cargo Type",
                 _display(loading.commodity),
-                "",
             ],
         ]
         cargo_detail_spans = [
@@ -2197,11 +2196,17 @@ def payment_invoice(request, pk):
         ]
     )
     bill_to_card = Table(
-        [[bill_to]], colWidths=[doc.width * 0.47], cornerRadii=(6, 6, 6, 6)
+        [[bill_to]],
+        colWidths=[doc.width * 0.47],
+        rowHeights=[88],
+        cornerRadii=(6, 6, 6, 6),
     )
     bill_to_card.setStyle(card_style)
     invoice_meta_card = Table(
-        [[invoice_meta]], colWidths=[doc.width * 0.47], cornerRadii=(6, 6, 6, 6)
+        [[invoice_meta]],
+        colWidths=[doc.width * 0.47],
+        rowHeights=[88],
+        cornerRadii=(6, 6, 6, 6),
     )
     invoice_meta_card.setStyle(card_style)
     info_table = Table(
