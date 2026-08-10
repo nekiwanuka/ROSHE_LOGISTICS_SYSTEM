@@ -1160,7 +1160,6 @@ class QuoteForm(forms.ModelForm):
             cleaned["airline"] = ""
             cleaned["gross_weight"] = None
             cleaned["commodity"] = ""
-            cleaned["origin"] = ""
             self.instance.item_number = ""
             self.instance.ctns = None
             self.instance.rate_per_kg = None
@@ -1180,7 +1179,6 @@ class QuoteForm(forms.ModelForm):
             cleaned["airline"] = ""
             cleaned["gross_weight"] = None
             cleaned["commodity"] = ""
-            cleaned["origin"] = ""
             self.instance.item_number = ""
             self.instance.ctns = None
             self.instance.rate_per_kg = None
