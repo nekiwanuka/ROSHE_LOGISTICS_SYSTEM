@@ -1884,11 +1884,6 @@ def payment_invoice(request, pk):
     payment = get_object_or_404(
         Payment.objects.select_related("loading__client"), pk=pk
     )
-    if payment.document_version == "legacy":
-        from .legacy_pdf_renderers import payment_invoice as legacy_payment_invoice
-
-        return legacy_payment_invoice(request, pk)
-
     preview_param = (request.GET.get("preview") or "").strip().lower()
     preview = preview_param in {"1", "true", "yes", "y"}
     buffer = BytesIO()
@@ -2463,11 +2458,6 @@ def payment_receipt(request, transaction_id):
         ),
         pk=transaction_id,
     )
-    if transaction.document_version == "legacy":
-        from .legacy_pdf_renderers import payment_receipt as legacy_payment_receipt
-
-        return legacy_payment_receipt(request, transaction_id)
-
     preview_param = (request.GET.get("preview") or "").strip().lower()
     preview = preview_param in {"1", "true", "yes", "y"}
     payment = transaction.payment
@@ -2876,11 +2866,6 @@ def quote_detail(request, quote_id):
 @login_required
 def quote_pdf(request, quote_id):
     quote = get_object_or_404(Quote.objects.select_related("client"), pk=quote_id)
-    if quote.document_version == "legacy":
-        from .legacy_pdf_renderers import quote_pdf as legacy_quote_pdf
-
-        return legacy_quote_pdf(request, quote_id)
-
     client = quote.client
     client_id = getattr(client, "client_id", None) or "NOCLIENT"
     preview = request.GET.get("preview") == "1"
