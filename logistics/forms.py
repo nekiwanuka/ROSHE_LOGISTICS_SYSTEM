@@ -1438,7 +1438,6 @@ class QuoteInvoiceConversionForm(forms.Form):
             for field_name in [
                 "item_number",
                 "item_description",
-                "origin",
                 "ctns",
                 "gross_weight",
                 "cargo_unit",

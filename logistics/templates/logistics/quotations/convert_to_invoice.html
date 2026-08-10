@@ -63,6 +63,7 @@
                     <div class="col-md-3"><span class="text-muted d-block">Cargo Type</span><strong>{{ quote.get_cargo_type_display }}</strong></div>
                     <div class="col-md-3"><span class="text-muted d-block">Flow Type</span><strong>{{ quote.get_flow_type_display }}</strong></div>
                     <div class="col-md-3"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
+                    <div class="col-md-3"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
                     <div class="col-md-3"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
                 </div>
             </div>

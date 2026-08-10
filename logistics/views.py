@@ -3362,6 +3362,7 @@ def quote_convert_to_invoice(request, quote_id):
 
             with transaction.atomic():
                 quote.loading_date = details["loading_date"]
+                quote.origin = (details.get("origin") or "").strip()
                 quote.destination = (details["destination"] or "").strip()
                 quote.container_number = container_number
                 quote.container_size = details.get("container_size") or ""
@@ -3382,7 +3383,6 @@ def quote_convert_to_invoice(request, quote_id):
                 quote.pvoc_fee = details.get("pvoc_fee") or 0
 
                 if quote.cargo_type == "air_cargo":
-                    quote.origin = (details.get("origin") or "").strip()
                     quote.item_number = (details.get("item_number") or "").strip()
                     quote.item_description = (
                         details.get("item_description") or ""
@@ -3435,11 +3435,7 @@ def quote_convert_to_invoice(request, quote_id):
                     ),
                     "container_number": quote.container_number,
                     "container_size": quote.container_size,
-                    "origin": (
-                        (quote.origin or "").strip()
-                        if quote.cargo_type == "air_cargo"
-                        else ""
-                    ),
+                    "origin": (quote.origin or "").strip(),
                     "destination": (quote.destination or "").strip(),
                 }
                 if loading is None:
