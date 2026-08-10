@@ -207,7 +207,7 @@
             var documentHandlingWrapper = documentHandling ? documentHandling.closest('.col-md-4') : null;
 
             if (flowType) flowType.style.display = isAirCargo ? 'none' : '';
-            if (origin) origin.style.display = isAirCargo ? '' : 'none';
+            if (origin) origin.style.display = '';
             if (freightPricingRules) freightPricingRules.style.display = isAirCargo ? 'none' : '';
             if (airCargoFields) airCargoFields.style.display = isAirCargo ? '' : 'none';
             airCargoMetaFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });

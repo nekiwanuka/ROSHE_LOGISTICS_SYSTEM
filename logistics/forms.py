@@ -1170,7 +1170,6 @@ class QuoteForm(forms.ModelForm):
             self.instance.size_per_carton = ""
             self.instance.gross_weight = None
             self.instance.commodity = ""
-            self.instance.origin = ""
             self.instance.pvoc_fee = 0
         elif flow_type == "fcl":
             cleaned["item_number"] = ""
@@ -1191,7 +1190,6 @@ class QuoteForm(forms.ModelForm):
             self.instance.size_per_carton = ""
             self.instance.gross_weight = None
             self.instance.commodity = ""
-            self.instance.origin = ""
             self.instance.pvoc_fee = 0
         elif cargo_type == "freight_cargo":
             self.add_error("flow_type", "Flow type is required for freight quotations.")
