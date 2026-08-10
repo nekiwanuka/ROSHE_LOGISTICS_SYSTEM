@@ -2989,7 +2989,8 @@ def quote_pdf(request, quote_id):
         f"<b>Cargo Type:</b> {quote.get_cargo_type_display()}",
         f"<b>Payment Terms:</b> {quote.payment_terms or '100% Before Shipment'}",
         f"<b>Currency:</b> {quote.currency or 'USD'}",
-        f"<b>Route:</b> {(quote.origin or '—')} to {(quote.destination or '—')}",
+        f"<b>Origin:</b> {quote.origin or '—'}",
+        f"<b>Destination:</b> {quote.destination or '—'}",
     ]
     if quote.cargo_type == "air_cargo":
         meta_lines.append(f"<b>Item Number:</b> {quote.item_number or '—'}")
@@ -3055,55 +3056,40 @@ def quote_pdf(request, quote_id):
                 "",
             ],
         ]
-    else:
-        shipment_rows = [
-            ["SHIPMENT DETAILS", "", "", ""],
-            [
-                "Destination",
-                _display(quote.destination),
-                "Measurement",
-                (
-                    f"{(quote.measurement or quote.cbm):.2f} CBM"
-                    if (quote.measurement is not None or quote.cbm is not None)
-                    else "—"
-                ),
-            ],
-        ]
-
-    shipment_table = Table(
-        shipment_rows,
-        colWidths=[
-            doc.width * 0.18,
-            doc.width * 0.32,
-            doc.width * 0.18,
-            doc.width * 0.32,
-        ],
-        hAlign="LEFT",
-    )
-    shipment_styles = [
-        ("SPAN", (0, 0), (-1, 0)),
-        ("BACKGROUND", (0, 0), (-1, 0), primary),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (2, 1), (2, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#D9E1E8")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]
     if quote.cargo_type == "air_cargo":
+        shipment_table = Table(
+            shipment_rows,
+            colWidths=[
+                doc.width * 0.18,
+                doc.width * 0.32,
+                doc.width * 0.18,
+                doc.width * 0.32,
+            ],
+            hAlign="LEFT",
+        )
+        shipment_styles = [
+            ("SPAN", (0, 0), (-1, 0)),
+            ("BACKGROUND", (0, 0), (-1, 0), primary),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+            ("FONTNAME", (2, 1), (2, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#D9E1E8")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
         shipment_styles.extend(
             [
                 ("SPAN", (1, 5), (-1, 5)),
                 ("SPAN", (1, 6), (-1, 6)),
             ]
         )
-    shipment_table.setStyle(TableStyle(shipment_styles))
+        shipment_table.setStyle(TableStyle(shipment_styles))
 
     is_air_cargo = quote.cargo_type == "air_cargo"
     fee = (
@@ -3250,14 +3236,18 @@ def quote_pdf(request, quote_id):
     story = [
         info_table,
         Spacer(1, 8),
-        shipment_table,
-        Spacer(1, 7),
-        items_table,
-        Spacer(1, 6),
-        totals_table,
-        Spacer(1, 10),
-        *notes,
     ]
+    if is_air_cargo:
+        story.extend([shipment_table, Spacer(1, 7)])
+    story.extend(
+        [
+            items_table,
+            Spacer(1, 6),
+            totals_table,
+            Spacer(1, 10),
+            *notes,
+        ]
+    )
 
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
 
