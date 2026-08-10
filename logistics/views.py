@@ -2192,7 +2192,6 @@ def payment_invoice(request, pk):
         cargo_detail_rows,
         colWidths=cargo_detail_col_widths,
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     cargo_details_table.setStyle(TableStyle(cargo_detail_styles))
 
@@ -2318,7 +2317,6 @@ def payment_invoice(request, pk):
             doc.width * 0.18,
         ],
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
@@ -2353,7 +2351,6 @@ def payment_invoice(request, pk):
             doc.width * 0.18,
         ],
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     totals_table.setStyle(
         TableStyle(
@@ -3101,7 +3098,6 @@ def quote_pdf(request, quote_id):
                 doc.width * 0.32,
             ],
             hAlign="LEFT",
-            cornerRadii=(6, 6, 6, 6),
         )
         shipment_styles = [
             ("SPAN", (0, 0), (-1, 0)),
@@ -3131,7 +3127,6 @@ def quote_pdf(request, quote_id):
             [["SHIPMENT DETAILS"]],
             colWidths=[doc.width],
             hAlign="LEFT",
-            cornerRadii=(6, 6, 6, 6),
         )
         shipment_table.setStyle(
             TableStyle(
@@ -3227,7 +3222,6 @@ def quote_pdf(request, quote_id):
             doc.width * 0.15,
         ],
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     quote_item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
@@ -3268,7 +3262,6 @@ def quote_pdf(request, quote_id):
             doc.width * 0.15,
         ],
         hAlign="LEFT",
-        cornerRadii=(6, 6, 6, 6),
     )
     totals_table.setStyle(
         TableStyle(
