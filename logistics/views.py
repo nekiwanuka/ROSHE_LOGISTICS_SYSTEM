@@ -2162,6 +2162,7 @@ def payment_invoice(request, pk):
         cargo_detail_rows,
         colWidths=cargo_detail_col_widths,
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     cargo_details_table.setStyle(TableStyle(cargo_detail_styles))
 
@@ -2169,6 +2170,7 @@ def payment_invoice(request, pk):
         [[bill_to, invoice_meta]],
         colWidths=[doc.width * 0.55, doc.width * 0.45],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     info_table.setStyle(
         TableStyle(
@@ -2286,6 +2288,7 @@ def payment_invoice(request, pk):
             doc.width * 0.18,
         ],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
@@ -2320,6 +2323,7 @@ def payment_invoice(request, pk):
             doc.width * 0.18,
         ],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     totals_table.setStyle(
         TableStyle(
@@ -3002,6 +3006,7 @@ def quote_pdf(request, quote_id):
         [[bill_to, meta]],
         colWidths=[doc.width * 0.55, doc.width * 0.45],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     info_table.setStyle(
         TableStyle(
@@ -3066,6 +3071,7 @@ def quote_pdf(request, quote_id):
                 doc.width * 0.32,
             ],
             hAlign="LEFT",
+            cornerRadii=(6, 6, 6, 6),
         )
         shipment_styles = [
             ("SPAN", (0, 0), (-1, 0)),
@@ -3090,6 +3096,27 @@ def quote_pdf(request, quote_id):
             ]
         )
         shipment_table.setStyle(TableStyle(shipment_styles))
+    else:
+        shipment_table = Table(
+            [["SHIPMENT DETAILS"]],
+            colWidths=[doc.width],
+            hAlign="LEFT",
+            cornerRadii=(6, 6, 6, 6),
+        )
+        shipment_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), primary),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
 
     is_air_cargo = quote.cargo_type == "air_cargo"
     fee = (
@@ -3170,6 +3197,7 @@ def quote_pdf(request, quote_id):
             doc.width * 0.15,
         ],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     quote_item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
@@ -3210,6 +3238,7 @@ def quote_pdf(request, quote_id):
             doc.width * 0.15,
         ],
         hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
     )
     totals_table.setStyle(
         TableStyle(
@@ -3237,8 +3266,7 @@ def quote_pdf(request, quote_id):
         info_table,
         Spacer(1, 8),
     ]
-    if is_air_cargo:
-        story.extend([shipment_table, Spacer(1, 7)])
+    story.extend([shipment_table, Spacer(1, 7)])
     story.extend(
         [
             items_table,
