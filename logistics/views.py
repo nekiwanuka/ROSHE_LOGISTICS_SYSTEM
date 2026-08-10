@@ -2143,10 +2143,10 @@ def payment_invoice(request, pk):
             ("SPAN", (0, 0), (-1, 0)),
         ]
         cargo_detail_col_widths = [
-            doc.width * 0.15,
-            doc.width * 0.32,
-            doc.width * 0.15,
-            doc.width * 0.32,
+            doc.width * 0.16,
+            doc.width * 0.34,
+            doc.width * 0.16,
+            doc.width * 0.34,
         ]
         cargo_detail_label_columns = [0, 2]
 
@@ -2181,6 +2181,7 @@ def payment_invoice(request, pk):
         cargo_detail_rows,
         colWidths=cargo_detail_col_widths,
         hAlign="LEFT",
+        cornerRadii=(3, 3, 3, 3),
     )
     cargo_details_table.setStyle(TableStyle(cargo_detail_styles))
 
