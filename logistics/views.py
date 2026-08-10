@@ -1260,19 +1260,49 @@ def loading_list(request):
 def loading_create(request):
     if request.method == "POST":
         form = LoadingForm(request.POST)
+        create_air_invoice = request.POST.get("create_air_invoice") == "1"
         if form.is_valid():
-            loading = form.save(commit=False)
-            loading.created_by = request.user
-            loading.save()
-            messages.success(request, "Cargo created successfully")
-            log_audit("loading", "create", loading.id, str(loading), request.user)
-            return redirect("loading_detail", pk=loading.id)
+            if create_air_invoice and not has_app_permission(
+                request.user, "create_invoices"
+            ):
+                form.add_error(None, "You do not have permission to create invoices.")
+            else:
+                with transaction.atomic():
+                    loading = form.save(commit=False)
+                    loading.created_by = request.user
+                    loading.save()
+                    log_audit(
+                        "loading", "create", loading.id, str(loading), request.user
+                    )
+
+                    if create_air_invoice and loading.cargo_type == "air_cargo":
+                        payment = Payment.objects.create(
+                            loading=loading,
+                            document_handling_fee=loading.handling_fees or 0,
+                            pvoc_fee=0,
+                            amount_charged=loading.air_cargo_total,
+                            created_by=request.user,
+                        )
+                        log_audit(
+                            "payment", "create", payment.id, str(payment), request.user
+                        )
+                        messages.success(
+                            request, "Air cargo invoice created successfully"
+                        )
+                        return redirect("payment_detail", pk=payment.id)
+
+                messages.success(request, "Cargo created successfully")
+                return redirect("loading_detail", pk=loading.id)
     else:
         form = LoadingForm()
     return render(
         request,
         "logistics/loadings/form.html",
-        {"form": form, "title": "Create Loading"},
+        {
+            "form": form,
+            "title": "Create Loading",
+            "create_air_invoice": request.POST.get("create_air_invoice") == "1",
+        },
     )
 
 

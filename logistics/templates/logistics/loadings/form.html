@@ -205,6 +205,12 @@
                             <a href="{% url 'loading_list' %}" class="btn btn-secondary">
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
+                            {% if app_perms.create_invoices %}
+                            <div class="form-check align-self-center me-md-auto" id="create-air-invoice-option" style="display: none;">
+                                <input class="form-check-input" type="checkbox" name="create_air_invoice" value="1" id="create-air-invoice" {% if create_air_invoice %}checked{% endif %}>
+                                <label class="form-check-label" for="create-air-invoice">Create invoice after saving</label>
+                            </div>
+                            {% endif %}
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-circle"></i> Save Cargo
                             </button>
@@ -283,6 +289,8 @@
             var grossWeightInput = document.getElementById('id_gross_weight');
             var rateBasisInput = document.getElementById('id_air_rate_basis');
             var rateInput = document.getElementById('id_rate_per_kg');
+            var createInvoiceOption = document.getElementById('create-air-invoice-option');
+            var createInvoiceInput = document.getElementById('create-air-invoice');
 
             if (isAirCargo) {
                 flow.value = 'lcl';
@@ -293,6 +301,8 @@
             if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
             if (originField) originField.style.display = '';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
+            if (createInvoiceOption) createInvoiceOption.style.display = isAirCargo ? '' : 'none';
+            if (!isAirCargo && createInvoiceInput) createInvoiceInput.checked = false;
 
             setFieldEnabled(containerInput, !isAirCargo);
             setFieldEnabled(containerSizeInput, !isAirCargo);
