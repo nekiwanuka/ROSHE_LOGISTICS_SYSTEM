@@ -291,7 +291,7 @@
             if (flowField) flowField.style.display = isAirCargo ? 'none' : '';
             if (containerNumberField) containerNumberField.style.display = isAirCargo ? 'none' : '';
             if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
-            if (originField) originField.style.display = isAirCargo ? '' : 'none';
+            if (originField) originField.style.display = '';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
 
             setFieldEnabled(containerInput, !isAirCargo);
@@ -302,8 +302,8 @@
             setFieldEnabled(rateInput, isAirCargo);
 
             setRequired(containerInput, !isAirCargo);
-            setFieldEnabled(originInput, isAirCargo);
-            setRequired(originInput, false);
+            setFieldEnabled(originInput, true);
+            setRequired(originInput, !isAirCargo);
             setRequired(itemNumberInput, isAirCargo);
             setRequired(descriptionInput, isAirCargo);
             setRequired(ctnsInput, isAirCargo);
