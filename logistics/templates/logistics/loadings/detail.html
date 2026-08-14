@@ -164,9 +164,9 @@
                 </div>
                 <div class="card-body">
                     {% if has_payment %}
-                        <p>Charged: ${{ loading.payment.amount_charged }}</p>
-                        <p>Paid: ${{ loading.payment.amount_paid }}</p>
-                        <p>Balance: <strong>${{ loading.payment.balance }}</strong></p>
+                        <p>Charged: {{ loading.currency|default:"USD" }} {{ loading.payment.amount_charged }}</p>
+                        <p>Paid: {{ loading.currency|default:"USD" }} {{ loading.payment.amount_paid }}</p>
+                        <p>Balance: <strong>{{ loading.currency|default:"USD" }} {{ loading.payment.balance }}</strong></p>
                         {% if user.role == 'superuser' or user.role == 'managing_director' %}
                         <a href="{% url 'payment_update' loading.payment.id %}" class="btn btn-sm btn-warning w-100">
                             <i class="bi bi-pencil"></i> Update Payment

@@ -184,6 +184,11 @@ class Client(models.Model):
 class Loading(models.Model):
     """Cargo/Loading management model"""
 
+    CURRENCY_CHOICES = (
+        ("USD", "USD - US Dollar"),
+        ("UGX", "UGX - Ugandan Shilling"),
+    )
+
     FLOW_CHOICES = (
         ("lcl", "LCL (Less Container Load)"),
         ("fcl", "FCL (Full Container Load)"),
@@ -239,7 +244,9 @@ class Loading(models.Model):
     airline = models.CharField(max_length=255, blank=True)
     size_per_carton = models.CharField(max_length=100, blank=True)
     payment_terms = models.CharField(max_length=100, default="", blank=True)
-    currency = models.CharField(max_length=10, default="USD", blank=True)
+    currency = models.CharField(
+        max_length=10, choices=CURRENCY_CHOICES, default="USD", blank=True
+    )
     incoterm = models.CharField(max_length=100, default="", blank=True)
     port_of_loading = models.CharField(max_length=255, default="", blank=True)
     port_of_discharge = models.CharField(max_length=255, default="", blank=True)

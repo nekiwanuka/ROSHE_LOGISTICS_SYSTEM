@@ -111,11 +111,11 @@
                         </td>
                         <td>{% if payment.loading.cargo_type == 'air_cargo' %}Air Cargo{% else %}{{ payment.loading.get_flow_type_display }}{% endif %}</td>
                         <td>{{ payment.loading.client.name }}</td>
-                        <td class="text-end amount">${{ payment.amount_charged|floatformat:2 }}</td>
-                        <td class="text-end amount">${{ payment.amount_paid|floatformat:2 }}</td>
+                        <td class="text-end amount">{{ payment.loading.currency|default:"USD" }} {{ payment.amount_charged|floatformat:2 }}</td>
+                        <td class="text-end amount">{{ payment.loading.currency|default:"USD" }} {{ payment.amount_paid|floatformat:2 }}</td>
                         <td>
                             {% if payment.balance > 0 %}
-                            <span class="badge badge-due">Due ${{ payment.balance|floatformat:2 }}</span>
+                            <span class="badge badge-due">Due {{ payment.loading.currency|default:"USD" }} {{ payment.balance|floatformat:2 }}</span>
                             {% else %}
                             <span class="badge badge-paid">Paid</span>
                             {% endif %}

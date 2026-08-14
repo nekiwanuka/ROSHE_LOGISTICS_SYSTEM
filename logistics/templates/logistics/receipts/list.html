@@ -67,7 +67,7 @@
                             {% endif %}
                         </td>
                         <td>{{ receipt.payment.loading.client.name }}</td>
-                        <td>${{ receipt.amount|floatformat:2 }}</td>
+                        <td>{{ receipt.payment.loading.currency|default:"USD" }} {{ receipt.amount|floatformat:2 }}</td>
                         <td>{{ receipt.payment_date|date:"Y-m-d H:i" }}</td>
                         <td>{{ receipt.get_payment_method_display }}</td>
                         <td>

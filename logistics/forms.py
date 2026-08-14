@@ -576,9 +576,7 @@ class LoadingForm(forms.ModelForm):
             "payment_terms": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "100% Before Shipment"}
             ),
-            "currency": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "USD"}
-            ),
+            "currency": forms.Select(attrs={"class": "form-control"}),
             "incoterm": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "FOB Guangzhou, China"}
             ),

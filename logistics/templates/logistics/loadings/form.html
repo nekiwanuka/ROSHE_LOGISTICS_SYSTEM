@@ -98,6 +98,11 @@
                                     {{ form.loading_date }}
                                     {% if form.loading_date.errors %}<div class="text-danger">{{ form.loading_date.errors }}</div>{% endif %}
                                 </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.currency.id_for_label }}" class="form-label">Currency *</label>
+                                    {{ form.currency }}
+                                    {% if form.currency.errors %}<div class="text-danger">{{ form.currency.errors }}</div>{% endif %}
+                                </div>
                                 <div class="col-md-6" id="field-weight">
                                     <label for="{{ form.weight.id_for_label }}" class="form-label" id="weight-label">CBM</label>
                                     {{ form.weight }}
@@ -200,7 +205,7 @@
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
                                     <label class="form-label">Air Cargo Total</label>
-                                    <input type="text" id="air-cargo-total" class="form-control" value="$0.00" readonly>
+                                    <input type="text" id="air-cargo-total" class="form-control" value="USD 0.00" readonly>
                                     <p class="field-hint" id="air-total-hint">Package count x rate + handling fees.</p>
                                 </div>
                             </div>
@@ -249,6 +254,8 @@
         function updateAirCargoTotal() {
             var total = document.getElementById('air-cargo-total');
             if (!total) return;
+            var currencyInput = document.getElementById('id_currency');
+            var currency = currencyInput && currencyInput.value ? currencyInput.value : 'USD';
             var packageCount = parseMoney(document.getElementById('id_ctns') && document.getElementById('id_ctns').value);
             var grossWeight = parseMoney(document.getElementById('id_gross_weight') && document.getElementById('id_gross_weight').value);
             var basisInput = document.getElementById('id_air_rate_basis');
@@ -256,7 +263,7 @@
             var quantity = basis === 'kg' ? grossWeight : packageCount;
             var rate = parseMoney(document.getElementById('id_rate_per_kg') && document.getElementById('id_rate_per_kg').value);
             var fees = parseMoney(document.getElementById('id_handling_fees') && document.getElementById('id_handling_fees').value);
-            total.value = '$' + ((quantity * rate) + fees).toFixed(2);
+            total.value = currency + ' ' + ((quantity * rate) + fees).toFixed(2);
 
             var rateLabel = document.getElementById('rate-label');
             var totalHint = document.getElementById('air-total-hint');
@@ -355,7 +362,7 @@
             }
         });
         document.addEventListener('input', function(e) {
-            if (e.target && ['id_ctns', 'id_gross_weight', 'id_air_rate_basis', 'id_rate_per_kg', 'id_handling_fees'].indexOf(e.target.id) !== -1) {
+            if (e.target && ['id_ctns', 'id_gross_weight', 'id_air_rate_basis', 'id_rate_per_kg', 'id_handling_fees', 'id_currency'].indexOf(e.target.id) !== -1) {
                 updateAirCargoTotal();
             }
         });

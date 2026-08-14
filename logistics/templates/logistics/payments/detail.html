@@ -77,15 +77,15 @@
                     <h5 class="card-title">Financial Summary</h5>
                     <dl class="row mb-0">
                         <dt class="col-6">Amount Charged</dt>
-                        <dd class="col-6 text-end fw-bold">${{ payment.amount_charged|floatformat:2|intcomma }}</dd>
+                        <dd class="col-6 text-end fw-bold">{{ payment.loading.currency|default:"USD" }} {{ payment.amount_charged|floatformat:2|intcomma }}</dd>
                         {% if payment.document_handling_fee and payment.document_handling_fee > 0 %}
                         <dt class="col-6">Doc &amp; Handling Fees</dt>
-                        <dd class="col-6 text-end">${{ payment.document_handling_fee|floatformat:2|intcomma }}</dd>
+                        <dd class="col-6 text-end">{{ payment.loading.currency|default:"USD" }} {{ payment.document_handling_fee|floatformat:2|intcomma }}</dd>
                         {% endif %}
                         {% if payment.pvoc_fee and payment.pvoc_fee > 0 %}
                         <dt class="col-6">PVOC</dt>
                         <dd class="col-6 text-end">
-                            ${{ payment.pvoc_total|floatformat:2|intcomma }}
+                            {{ payment.loading.currency|default:"USD" }} {{ payment.pvoc_total|floatformat:2|intcomma }}
                             <div class="small text-muted">
                                 {% if payment.loading.flow_type == 'lcl' %}
                                     Per CBM
@@ -96,23 +96,23 @@
                         </dd>
                         {% endif %}
                         <dt class="col-6">Amount Paid</dt>
-                        <dd class="col-6 text-end text-success fw-bold">${{ payment.amount_paid|floatformat:2|intcomma }}</dd>
+                        <dd class="col-6 text-end text-success fw-bold">{{ payment.loading.currency|default:"USD" }} {{ payment.amount_paid|floatformat:2|intcomma }}</dd>
                         {% if pending_count and pending_amount > 0 %}
                         <dt class="col-6">Pending Receipts</dt>
                         <dd class="col-6 text-end text-warning fw-bold">
-                            ${{ pending_amount|floatformat:2|intcomma }}
+                            {{ payment.loading.currency|default:"USD" }} {{ pending_amount|floatformat:2|intcomma }}
                             <span class="text-muted fw-normal">({{ pending_count }})</span>
                         </dd>
                         {% endif %}
                         {% if rejected_count and rejected_amount > 0 %}
                         <dt class="col-6">Rejected Receipts</dt>
                         <dd class="col-6 text-end text-danger fw-bold">
-                            ${{ rejected_amount|floatformat:2|intcomma }}
+                            {{ payment.loading.currency|default:"USD" }} {{ rejected_amount|floatformat:2|intcomma }}
                             <span class="text-muted fw-normal">({{ rejected_count }})</span>
                         </dd>
                         {% endif %}
                         <dt class="col-6">Balance</dt>
-                        <dd class="col-6 text-end {% if payment.balance > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">${{ payment.balance|floatformat:2|intcomma }}</dd>
+                        <dd class="col-6 text-end {% if payment.balance > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">{{ payment.loading.currency|default:"USD" }} {{ payment.balance|floatformat:2|intcomma }}</dd>
                         <dt class="col-6">Payment Method</dt>
                         <dd class="col-6 text-end">{{ payment.get_payment_method_display|default:'—' }}</dd>
                         <dt class="col-6">Last Updated</dt>
@@ -153,8 +153,8 @@
                     <p class="mb-1">Gross Weight: {% if payment.loading.gross_weight %}{{ payment.loading.gross_weight }} KGS{% else %}-{% endif %}</p>
                     <p class="mb-1">Package Type: {{ payment.loading.get_cargo_unit_display|default:"-" }}</p>
                     <p class="mb-1">Rate Basis: {{ payment.loading.get_air_rate_basis_display|default:"-" }}</p>
-                    <p class="mb-1">Rate: {% if payment.loading.rate_per_kg %}${{ payment.loading.rate_per_kg|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
-                    <p class="mb-1">Handling Fees: {% if payment.loading.handling_fees %}${{ payment.loading.handling_fees|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
+                    <p class="mb-1">Rate: {% if payment.loading.rate_per_kg %}{{ payment.loading.currency|default:"USD" }} {{ payment.loading.rate_per_kg|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
+                    <p class="mb-1">Handling Fees: {% if payment.loading.handling_fees %}{{ payment.loading.currency|default:"USD" }} {{ payment.loading.handling_fees|floatformat:2|intcomma }}{% else %}-{% endif %}</p>
                     {% else %}
                     <p class="mb-1">Destination: {{ payment.loading.destination }}</p>
                     <p class="mb-1">Flow: {{ payment.loading.get_flow_type_display }}</p>
@@ -209,7 +209,7 @@
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                                 <div>
                                     <p class="text-muted mb-1">{{ transaction.payment_date|date:"M d, Y H:i" }}</p>
-                                    <h4 class="mb-0 text-primary">${{ transaction.amount|floatformat:2|intcomma }}</h4>
+                                    <h4 class="mb-0 text-primary">{{ payment.loading.currency|default:"USD" }} {{ transaction.amount|floatformat:2|intcomma }}</h4>
                                 </div>
                                 <div class="text-md-end">
                                     {% if transaction.verification_status == 'approved' %}
@@ -307,7 +307,7 @@
                                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                                     <div>
                                         <div class="fw-semibold">{{ transaction.receipt_number }}</div>
-                                        <div class="text-muted small">${{ transaction.amount|floatformat:2|intcomma }} • {{ transaction.payment_date|date:"M d, Y H:i" }}</div>
+                                        <div class="text-muted small">{{ payment.loading.currency|default:"USD" }} {{ transaction.amount|floatformat:2|intcomma }} • {{ transaction.payment_date|date:"M d, Y H:i" }}</div>
                                         {% if transaction.void_reason %}
                                         <div class="text-muted small fst-italic">Voided: “{{ transaction.void_reason }}”</div>
                                         {% endif %}
