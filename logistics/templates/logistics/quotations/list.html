@@ -36,7 +36,7 @@
                             <div class="fw-semibold">{{ quote.client.name }}</div>
                             <div class="text-muted small">{{ quote.origin }} → {{ quote.destination }}</div>
                         </td>
-                        <td>${{ quote.amount_quoted|floatformat:2 }}</td>
+                        <td>{{ quote.currency|default:"USD" }} {{ quote.amount_quoted|floatformat:2 }}</td>
                         <td>
                             {% if quote.status == 'accepted' %}
                                 <span class="badge bg-success">{{ quote.get_status_display }}</span>

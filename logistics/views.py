@@ -251,11 +251,11 @@ def _is_whatsapp_api_mode_enabled():
     return str(getattr(settings, "WHATSAPP_MODE", "link")).strip().lower() == "api"
 
 
-def _fmt_money(value):
+def _fmt_money(value, currency=None):
     if value is None or value == "":
         return ""
     try:
-        return f"${Decimal(str(value)):,.2f}"
+        return f"{currency or 'USD'} {Decimal(str(value)):,.2f}"
     except Exception:
         return str(value)
 
@@ -1662,20 +1662,21 @@ def payment_detail(request, pk):
                     f"Payment transaction {transaction.receipt_number}",
                     request.user,
                 )
+                currency = payment.loading.currency or "USD"
                 if transaction.verification_status == "approved":
                     messages.success(
                         request,
-                        f"Recorded approved payment of ${transaction.amount:,.2f}.",
+                        f"Recorded approved payment of {currency} {transaction.amount:,.2f}.",
                     )
                 elif transaction.verification_status == "rejected":
                     messages.warning(
                         request,
-                        f"Recorded rejected receipt of ${transaction.amount:,.2f}.",
+                        f"Recorded rejected receipt of {currency} {transaction.amount:,.2f}.",
                     )
                 else:
                     messages.success(
                         request,
-                        f"Recorded receipt of ${transaction.amount:,.2f} (pending review). Invoice balance will update after approval.",
+                        f"Recorded receipt of {currency} {transaction.amount:,.2f} (pending review). Invoice balance will update after approval.",
                     )
                 return redirect("payment_detail", pk=pk)
     else:
@@ -1733,7 +1734,7 @@ def payment_invoice_whatsapp(request, pk):
         f"ROSHE LOGISTICS - {invoice_label} {payment.invoice_number}\n"
         f"Client: {client.name}\n"
         f"{cargo_label}: {cargo_value or '-'}\n"
-        f"Amount Due: ${payment.balance:,.2f}\n"
+        f"Amount Due: {loading.currency or 'USD'} {payment.balance:,.2f}\n"
         f"View Invoice: {invoice_full_url}"
     )
 
@@ -1811,7 +1812,7 @@ def payment_receipt_whatsapp(request, transaction_id):
         f"ROSHE LOGISTICS - Receipt {transaction.receipt_number}\n"
         f"Client: {client.name}\n"
         f"Container: {loading.container_number}\n"
-        f"Amount: ${transaction.amount:,.2f}\n"
+        f"Amount: {loading.currency or 'USD'} {transaction.amount:,.2f}\n"
         f"View Receipt: {receipt_full_url}"
     )
 
@@ -2051,7 +2052,7 @@ def payment_invoice(request, pk):
         f"<b>Payment Due:</b> {due_date.strftime('%Y-%m-%d')}",
         f"<b>Payment Terms:</b> {loading.payment_terms or '100% Before Delivery'}",
         f"<b>Currency:</b> {currency}",
-        f"<b>Amount Due ({currency}):</b> ${amount_due:,.2f}",
+        f"<b>Amount Due ({currency}):</b> {amount_due:,.2f}",
     ]
     invoice_meta = Paragraph("<br/>".join(invoice_meta_lines), normal)
 
@@ -2663,7 +2664,7 @@ def payment_receipt(request, transaction_id):
     shipment_details = Paragraph("<br/>".join(shipment_lines), normal)
 
     summary_rows = [
-        ["Summary", "Amount (USD)"],
+        ["Summary", f"Amount ({loading.currency or 'USD'})"],
         ["Amount Paid (this receipt)", f"{transaction.amount:,.2f}"],
         ["Paid Up To", f"{paid_up_to:,.2f}"],
         ["Outstanding After Payment", f"{balance_after:,.2f}"],
@@ -3256,7 +3257,7 @@ def quote_pdf(request, quote_id):
     totals_table = Table(
         [
             [
-                "Grand Total (USD)",
+                f"Grand Total ({quote.currency or 'USD'})",
                 "",
                 "",
                 "",
@@ -3396,6 +3397,7 @@ def quote_convert_to_invoice(request, quote_id):
 
             with transaction.atomic():
                 quote.loading_date = details["loading_date"]
+                quote.currency = details.get("currency") or quote.currency or "USD"
                 quote.origin = (details.get("origin") or "").strip()
                 quote.destination = (details["destination"] or "").strip()
                 quote.container_number = container_number
@@ -4138,9 +4140,9 @@ def export_shipments_pdf(request):
                 else ""
             ),
             (loading.air_rate_unit_label if loading.cargo_type == "air_cargo" else ""),
-            _fmt_money(loading.rate_per_kg),
-            _fmt_money(loading.handling_fees),
-            _fmt_money(loading.air_cargo_total),
+            _fmt_money(loading.rate_per_kg, loading.currency),
+            _fmt_money(loading.handling_fees, loading.currency),
+            _fmt_money(loading.air_cargo_total, loading.currency),
             loading.airline or "",
             (
                 _fmt_number(loading.weight, decimals=2)
@@ -4241,15 +4243,11 @@ def export_payments_pdf(request):
             payment.loading.container_number,
             payment.loading.get_flow_type_display(),
             payment.loading.client.name,
-            f"${payment.rate_per_cbm:,.2f}" if payment.rate_per_cbm is not None else "",
-            (
-                f"${payment.rate_per_container:,.2f}"
-                if payment.rate_per_container is not None
-                else ""
-            ),
-            f"${payment.amount_charged:,.2f}",
-            f"${payment.amount_paid:,.2f}",
-            f"${payment.balance:,.2f}",
+            _fmt_money(payment.rate_per_cbm, payment.loading.currency),
+            _fmt_money(payment.rate_per_container, payment.loading.currency),
+            _fmt_money(payment.amount_charged, payment.loading.currency),
+            _fmt_money(payment.amount_paid, payment.loading.currency),
+            _fmt_money(payment.balance, payment.loading.currency),
             (
                 payment.payment_date.strftime("%Y-%m-%d %H:%M")
                 if payment.payment_date
@@ -4363,7 +4361,7 @@ def export_receipts_pdf(request):
                 receipt.receipt_number,
                 receipt.get_verification_status_display(),
                 "Yes" if receipt.is_voided else "No",
-                f"${receipt.amount:,.2f}",
+                _fmt_money(receipt.amount, loading.currency),
                 (
                     receipt.payment_date.strftime("%Y-%m-%d %H:%M")
                     if receipt.payment_date
@@ -4587,14 +4585,18 @@ def export_quotes_pdf(request):
             quote.get_container_size_display() if quote.container_size else "",
             _fmt_dt(quote.loading_date),
             _fmt_number(quote.cbm, decimals=2) if quote.cbm is not None else "",
-            _fmt_money(quote.rate_per_cbm) if quote.rate_per_cbm is not None else "",
             (
-                _fmt_money(quote.rate_per_container)
+                _fmt_money(quote.rate_per_cbm, quote.currency)
+                if quote.rate_per_cbm is not None
+                else ""
+            ),
+            (
+                _fmt_money(quote.rate_per_container, quote.currency)
                 if quote.rate_per_container is not None
                 else ""
             ),
-            _fmt_money(quote.document_handling_fee),
-            _fmt_money(quote.amount_quoted),
+            _fmt_money(quote.document_handling_fee, quote.currency),
+            _fmt_money(quote.amount_quoted, quote.currency),
             _fmt_dt(quote.created_at),
         ]
         for quote in Quote.objects.select_related("client").order_by(

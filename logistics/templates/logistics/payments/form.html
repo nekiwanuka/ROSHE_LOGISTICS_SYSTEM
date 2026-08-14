@@ -110,7 +110,7 @@
                         <div class="mb-3">
                             <label class="form-label">Amount Charged (auto)</label>
                             {% if payment %}
-                            <input type="text" class="form-control" id="amount-charged-preview" value="${{ payment.amount_charged|floatformat:2 }}" readonly>
+                            <input type="text" class="form-control" id="amount-charged-preview" value="{{ payment.loading.currency|default:'USD' }} {{ payment.amount_charged|floatformat:2 }}" readonly>
                             {% else %}
                             <input type="text" class="form-control" id="amount-charged-preview" value="Will calculate after saving" readonly>
                             {% endif %}
@@ -120,7 +120,7 @@
                         <div class="mb-3">
                             <label class="form-label">Amount Paid (auto)</label>
                             {% if payment %}
-                            <input type="text" class="form-control" value="${{ payment.amount_paid|floatformat:2 }}" readonly>
+                            <input type="text" class="form-control" value="{{ payment.loading.currency|default:'USD' }} {{ payment.amount_paid|floatformat:2 }}" readonly>
                             {% else %}
                             <input type="text" class="form-control" value="$0.00" readonly>
                             {% endif %}

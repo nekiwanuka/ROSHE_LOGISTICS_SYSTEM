@@ -49,6 +49,7 @@
                     <div class="col-md-4"><label class="form-label">Rate</label>{{ form.rate_per_kg }}{% if form.rate_per_kg.errors %}<div class="text-danger small">{{ form.rate_per_kg.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Handling Fees</label>{{ form.handling_fees }}{% if form.handling_fees.errors %}<div class="text-danger small">{{ form.handling_fees.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Airline</label>{{ form.airline }}{% if form.airline.errors %}<div class="text-danger small">{{ form.airline.errors }}</div>{% endif %}</div>
+                    <div class="col-md-4"><label class="form-label">Currency</label>{{ form.currency }}{% if form.currency.errors %}<div class="text-danger small">{{ form.currency.errors }}</div>{% endif %}</div>
                     <div class="col-md-8"><label class="form-label">Description <span class="text-muted">(optional)</span></label>{{ form.item_description }}{% if form.item_description.errors %}<div class="text-danger small">{{ form.item_description.errors }}</div>{% endif %}</div>
                 </div>
             </div>
@@ -65,6 +66,7 @@
                     <div class="col-md-3"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
                     <div class="col-md-3"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
                     <div class="col-md-3"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
+                    <div class="col-md-3"><label class="form-label">Currency</label>{{ form.currency }}{% if form.currency.errors %}<div class="text-danger small">{{ form.currency.errors }}</div>{% endif %}</div>
                 </div>
             </div>
         </div>

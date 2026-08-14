@@ -1072,9 +1072,7 @@ class QuoteForm(forms.ModelForm):
             "payment_terms": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "100% Before Shipment"}
             ),
-            "currency": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "USD"}
-            ),
+            "currency": forms.Select(attrs={"class": "form-select"}),
             "awb_number": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "AWB no."}
             ),
@@ -1290,6 +1288,12 @@ class QuoteInvoiceConversionForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Airline"}
         ),
     )
+    currency = forms.ChoiceField(
+        required=False,
+        label="Currency",
+        choices=Loading.CURRENCY_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
 
     container_number = forms.CharField(
         required=False,
@@ -1403,6 +1407,7 @@ class QuoteInvoiceConversionForm(forms.Form):
             initial.setdefault("rate_per_kg", quote.rate_per_kg)
             initial.setdefault("handling_fees", quote.handling_fees or 0)
             initial.setdefault("airline", quote.airline or "")
+            initial.setdefault("currency", quote.currency or "USD")
             initial.setdefault("final_destination", quote.destination or "")
             initial.setdefault("measurement", quote.cbm)
             initial.setdefault("rate_per_cbm", quote.rate_per_cbm)

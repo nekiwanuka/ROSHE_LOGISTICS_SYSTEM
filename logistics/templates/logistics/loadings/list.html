@@ -84,7 +84,7 @@
                         <td>{{ loading.ctns|default:'-' }}</td>
                         <td>
                             {% if loading.cargo_type == 'air_cargo' and loading.air_cargo_total %}
-                                ${{ loading.air_cargo_total|floatformat:2 }}
+                                {{ loading.currency|default:"USD" }} {{ loading.air_cargo_total|floatformat:2 }}
                             {% else %}
                                 -
                             {% endif %}
