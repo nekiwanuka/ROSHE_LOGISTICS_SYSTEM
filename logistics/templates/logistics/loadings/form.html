@@ -139,6 +139,16 @@
                                     {{ form.destination }}
                                     {% if form.destination.errors %}<div class="text-danger">{{ form.destination.errors }}</div>{% endif %}
                                 </div>
+                                <div class="col-md-6 freight-cargo-field">
+                                    <label for="{{ form.vessel_voyage.id_for_label }}" class="form-label">Vessel / Voyage</label>
+                                    {{ form.vessel_voyage }}
+                                    {% if form.vessel_voyage.errors %}<div class="text-danger">{{ form.vessel_voyage.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6 freight-cargo-field">
+                                    <label for="{{ form.eta.id_for_label }}" class="form-label">ETA (Estimated)</label>
+                                    {{ form.eta }}
+                                    {% if form.eta.errors %}<div class="text-danger">{{ form.eta.errors }}</div>{% endif %}
+                                </div>
                             </div>
                         </div>
 
