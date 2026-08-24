@@ -52,18 +52,18 @@
                     {% if loading.cargo_type == 'air_cargo' %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <h6 class="text-muted">Item Number</h6>
-                            <p><strong>{{ loading.item_number|default:"-" }}</strong></p>
+                            <h6 class="text-muted">Origin</h6>
+                            <p><strong>{{ loading.origin|default:"-" }}</strong></p>
                         </div>
                         <div class="col-md-6">
-                            <h6 class="text-muted">Airline</h6>
-                            <p>{{ loading.airline|default:"-" }}</p>
+                            <h6 class="text-muted">Destination</h6>
+                            <p>{{ loading.destination|default:"-" }}</p>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <h6 class="text-muted">Package Count</h6>
-                            <p>{{ loading.ctns|default:"-" }} {{ loading.get_cargo_unit_display|default:"" }}</p>
+                            <p>{{ loading.ctns|default:"-" }}</p>
                         </div>
                         <div class="col-md-6">
                             <h6 class="text-muted">Gross Weight</h6>
@@ -91,6 +91,19 @@
                         </div>
                     </div>
                     {% else %}
+                    {% if loading.flow_type == 'fcl' and loading.container_lines.all %}
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light"><tr><th>Qty</th><th>Container Type</th><th>Container No(s)</th><th class="text-end">Rate Per Container</th><th class="text-end">PVOC</th><th class="text-end">Amount</th></tr></thead>
+                            <tbody>
+                                {% for line in loading.container_lines.all %}
+                                <tr><td>{{ line.quantity }}</td><td>{{ line.get_container_size_display }}</td><td>{{ line.container_numbers }}</td><td class="text-end">{{ loading.currency|default:"USD" }} {{ line.rate_per_container|floatformat:2 }}</td><td class="text-end">{{ loading.currency|default:"USD" }} {{ line.pvoc_per_container|floatformat:2 }}</td><td class="text-end">{{ loading.currency|default:"USD" }} {{ line.total_amount|floatformat:2 }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot><tr><th colspan="5" class="text-end">FCL Freight Total</th><th class="text-end">{{ loading.currency|default:"USD" }} {{ loading.fcl_freight_total|floatformat:2 }}</th></tr><tr><th colspan="5" class="text-end">PVOC Total</th><th class="text-end">{{ loading.currency|default:"USD" }} {{ loading.fcl_pvoc_total|floatformat:2 }}</th></tr></tfoot>
+                        </table>
+                    </div>
+                    {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <h6 class="text-muted">Container Number</h6>
@@ -101,6 +114,7 @@
                             <p>{{ loading.get_container_size_display|default:'-' }}</p>
                         </div>
                     </div>
+                    {% endif %}
 
                     {% if loading.flow_type == 'lcl' %}
                     <div class="row mb-3">
@@ -176,7 +190,7 @@
                         <p class="text-muted">No payment record yet</p>
                         {% if app_perms.create_invoices %}
                         <a href="{% url 'payment_create_with_loading' loading.id %}" class="btn btn-sm btn-primary w-100">
-                            <i class="bi bi-plus"></i> Add Payment
+                            <i class="bi bi-file-earmark-plus"></i> Create Invoice
                         </a>
                         {% else %}
                         <p class="text-muted mb-0"><small>You do not have permission to create invoices.</small></p>

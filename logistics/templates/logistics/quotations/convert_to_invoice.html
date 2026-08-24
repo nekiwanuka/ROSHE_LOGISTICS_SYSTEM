@@ -38,19 +38,14 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-4"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Item Number</label>{{ form.item_number }}{% if form.item_number.errors %}<div class="text-danger small">{{ form.item_number.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Package Count</label>{{ form.ctns }}{% if form.ctns.errors %}<div class="text-danger small">{{ form.ctns.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Package Type</label>{{ form.cargo_unit }}{% if form.cargo_unit.errors %}<div class="text-danger small">{{ form.cargo_unit.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Gross Weight (KGS)</label>{{ form.gross_weight }}{% if form.gross_weight.errors %}<div class="text-danger small">{{ form.gross_weight.errors }}</div>{% endif %}</div>
+                    <div class="col-md-6"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
+                    <div class="col-md-6"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
+                    <div class="col-md-6"><label class="form-label">Package Count</label>{{ form.ctns }}{% if form.ctns.errors %}<div class="text-danger small">{{ form.ctns.errors }}</div>{% endif %}</div>
+                    <div class="col-md-6"><label class="form-label">Gross Weight (KGS)</label>{{ form.gross_weight }}{% if form.gross_weight.errors %}<div class="text-danger small">{{ form.gross_weight.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Rate Basis</label>{{ form.air_rate_basis }}{% if form.air_rate_basis.errors %}<div class="text-danger small">{{ form.air_rate_basis.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Rate</label>{{ form.rate_per_kg }}{% if form.rate_per_kg.errors %}<div class="text-danger small">{{ form.rate_per_kg.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Handling Fees</label>{{ form.handling_fees }}{% if form.handling_fees.errors %}<div class="text-danger small">{{ form.handling_fees.errors }}</div>{% endif %}</div>
-                    <div class="col-md-4"><label class="form-label">Airline</label>{{ form.airline }}{% if form.airline.errors %}<div class="text-danger small">{{ form.airline.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Currency</label>{{ form.currency }}{% if form.currency.errors %}<div class="text-danger small">{{ form.currency.errors }}</div>{% endif %}</div>
-                    <div class="col-md-8"><label class="form-label">Description <span class="text-muted">(optional)</span></label>{{ form.item_description }}{% if form.item_description.errors %}<div class="text-danger small">{{ form.item_description.errors }}</div>{% endif %}</div>
                 </div>
             </div>
         </div>
@@ -63,9 +58,6 @@
                 <div class="row g-3">
                     <div class="col-md-3"><span class="text-muted d-block">Cargo Type</span><strong>{{ quote.get_cargo_type_display }}</strong></div>
                     <div class="col-md-3"><span class="text-muted d-block">Flow Type</span><strong>{{ quote.get_flow_type_display }}</strong></div>
-                    <div class="col-md-3"><label class="form-label">Expected Loading Date</label>{{ form.loading_date }}{% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}</div>
-                    <div class="col-md-3"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
-                    <div class="col-md-3"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
                     <div class="col-md-3"><label class="form-label">Currency</label>{{ form.currency }}{% if form.currency.errors %}<div class="text-danger small">{{ form.currency.errors }}</div>{% endif %}</div>
                 </div>
             </div>
@@ -77,63 +69,52 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Container No.</label>
-                        {{ form.container_number }}
-                        {% if form.container_number.errors %}<div class="text-danger small">{{ form.container_number.errors }}</div>{% endif %}
+                    {% if quote.flow_type == 'fcl' %}
+                    <div class="col-12 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-semibold mb-0">FCL Containers</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-container-row"><i class="bi bi-plus-lg"></i> Add Container</button>
+                        </div>
+                        {{ container_formset.management_form }}
+                        {% if container_formset.non_form_errors %}<div class="alert alert-warning py-2">{{ container_formset.non_form_errors }}</div>{% endif %}
+                        <div id="container-rows">
+                            {% for container_form in container_formset %}
+                            <div class="container-row border rounded p-3 mb-2">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-1"><label class="form-label">Item No.</label>{{ container_form.quantity }}<input class="form-control" value="{{ forloop.counter }}" readonly></div>
+                                    <div class="col-md-2"><label class="form-label">Container No *</label>{{ container_form.container_numbers }}{{ container_form.container_numbers.errors }}</div>
+                                    <div class="col-md-2"><label class="form-label">Container Type</label>{{ container_form.container_size }}{{ container_form.container_size.errors }}</div>
+                                    <div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_form.rate_per_container }}{{ container_form.rate_per_container.errors }}</div>
+                                    <div class="col-md-2"><label class="form-label">PVOC</label>{{ container_form.pvoc_per_container }}{{ container_form.pvoc_per_container.errors }}</div>
+                                    <div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div>
+                                    <div class="col-md-1 text-end">{{ container_form.DELETE.as_hidden }}<button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <template id="empty-container-row"><div class="container-row border rounded p-3 mb-2"><div class="row g-2 align-items-end"><div class="col-md-1"><label class="form-label">Item No.</label>{{ container_formset.empty_form.quantity }}<input class="form-control" value="Auto" readonly></div><div class="col-md-2"><label class="form-label">Container No *</label>{{ container_formset.empty_form.container_numbers }}</div><div class="col-md-2"><label class="form-label">Container Type</label>{{ container_formset.empty_form.container_size }}</div><div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_formset.empty_form.rate_per_container }}</div><div class="col-md-2"><label class="form-label">PVOC</label>{{ container_formset.empty_form.pvoc_per_container }}</div><div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div><div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div></div></div></template>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Container Type</label>
-                        {{ form.container_size }}
-                        {% if form.container_size.errors %}<div class="text-danger small">{{ form.container_size.errors }}</div>{% endif %}
-                    </div>
+                    {% endif %}
                 </div>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Port of Loading</label>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">POL</label>
                         {{ form.port_of_loading }}
                         {% if form.port_of_loading.errors %}<div class="text-danger small">{{ form.port_of_loading.errors }}</div>{% endif %}
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Port of Discharge</label>
+                    <div class="col-md-6">
+                        <label class="form-label">Destination</label>
                         {{ form.port_of_discharge }}
                         {% if form.port_of_discharge.errors %}<div class="text-danger small">{{ form.port_of_discharge.errors }}</div>{% endif %}
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Final Destination</label>
-                        {{ form.final_destination }}
-                        {% if form.final_destination.errors %}<div class="text-danger small">{{ form.final_destination.errors }}</div>{% endif %}
-                    </div>
                 </div>
-                <div class="row">
+                {% if quote.flow_type == 'lcl' %}<div class="row">
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Vessel / Voyage</label>
-                        {{ form.vessel_voyage }}
-                        {% if form.vessel_voyage.errors %}<div class="text-danger small">{{ form.vessel_voyage.errors }}</div>{% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">ETD</label>
-                        {{ form.etd }}
-                        {% if form.etd.errors %}<div class="text-danger small">{{ form.etd.errors }}</div>{% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">ETA</label>
-                        {{ form.eta }}
-                        {% if form.eta.errors %}<div class="text-danger small">{{ form.eta.errors }}</div>{% endif %}
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Measurement / CBM</label>
+                        <label class="form-label">CBM</label>
                         {{ form.measurement }}
                         {% if form.measurement.errors %}<div class="text-danger small">{{ form.measurement.errors }}</div>{% endif %}
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Incoterm</label>
-                        {{ form.incoterm }}
-                        {% if form.incoterm.errors %}<div class="text-danger small">{{ form.incoterm.errors }}</div>{% endif %}
-                    </div>
-                </div>
+                </div>{% endif %}
             </div>
         </div>
         <div class="card mb-4">
@@ -142,27 +123,22 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4 mb-3">
+                    {% if quote.flow_type == 'lcl' %}<div class="col-md-4 mb-3">
                         <label class="form-label">Rate per CBM</label>
                         {{ form.rate_per_cbm }}
                         {% if form.rate_per_cbm.errors %}<div class="text-danger small">{{ form.rate_per_cbm.errors }}</div>{% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Rate per Container</label>
-                        {{ form.rate_per_container }}
-                        {% if form.rate_per_container.errors %}<div class="text-danger small">{{ form.rate_per_container.errors }}</div>{% endif %}
-                    </div>
+                    </div>{% endif %}
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Document & Handling Fee</label>
                         {{ form.document_handling_fee }}
                         {% if form.document_handling_fee.errors %}<div class="text-danger small">{{ form.document_handling_fee.errors }}</div>{% endif %}
                     </div>
-                    <div class="col-md-4 mb-3">
+                    {% if quote.flow_type == 'lcl' %}<div class="col-md-4 mb-3">
                         <label class="form-label">PVOC Fee</label>
                         {{ form.pvoc_fee }}
                         <div class="form-text">For LCL, enter PVOC per CBM.</div>
                         {% if form.pvoc_fee.errors %}<div class="text-danger small">{{ form.pvoc_fee.errors }}</div>{% endif %}
-                    </div>
+                    </div>{% endif %}
                 </div>
             </div>
         </div>
@@ -176,4 +152,43 @@
         </div>
     </form>
 </div>
+{% if quote.flow_type == 'fcl' %}
+<script>
+function updateContainerAmount(row) {
+    var rateInput = row.querySelector('[name$="-rate_per_container"]');
+    var pvocInput = row.querySelector('[name$="-pvoc_per_container"]');
+    var amountInput = row.querySelector('.container-total');
+    if (!amountInput) return;
+    var rate = parseFloat((rateInput && rateInput.value || '0').replace(/,/g, '')) || 0;
+    var pvoc = parseFloat((pvocInput && pvocInput.value || '0').replace(/,/g, '')) || 0;
+    amountInput.value = (rate + pvoc).toFixed(2);
+}
+document.querySelectorAll('.container-row').forEach(updateContainerAmount);
+document.addEventListener('input', function(event) {
+    if ((event.target.name || '').match(/-(rate_per_container|pvoc_per_container)$/)) {
+        updateContainerAmount(event.target.closest('.container-row'));
+    }
+});
+document.addEventListener('click', function(event) {
+    if (event.target.closest('#add-container-row')) {
+        var totalInput = document.getElementById('id_containers-TOTAL_FORMS');
+        var index = parseInt(totalInput.value, 10);
+        document.getElementById('container-rows').insertAdjacentHTML('beforeend', document.getElementById('empty-container-row').innerHTML.replace(/__prefix__/g, index));
+        totalInput.value = index + 1;
+        updateContainerAmount(document.getElementById('container-rows').lastElementChild);
+        return;
+    }
+    var removeButton = event.target.closest('.remove-container-row');
+    if (!removeButton) return;
+    var row = removeButton.closest('.container-row');
+    var deleteInput = row.querySelector('input[name$="-DELETE"]');
+    if (deleteInput) {
+        deleteInput.value = 'on';
+        row.classList.add('d-none');
+    } else {
+        row.remove();
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

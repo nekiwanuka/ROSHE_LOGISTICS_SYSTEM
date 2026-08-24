@@ -12,6 +12,7 @@ globals().update(
     }
 )
 
+
 def payment_invoice(request, pk):
     payment = get_object_or_404(
         Payment.objects.select_related("loading__client"), pk=pk
@@ -95,11 +96,11 @@ def payment_invoice(request, pk):
         )
         canvas_obj.drawString(company_x, top - 36, "www.roshegroup.com")
 
-        # Shipment invoice label (yellow background, black text)
+        # Invoice label (yellow background, black text)
         label_text = (
             f"AIR CARGO INVOICE {payment.invoice_number}"
             if is_air_cargo
-            else f"SHIPMENT INVOICE {payment.invoice_number}"
+            else f"OCEAN FREIGHT INVOICE {payment.invoice_number}"
         )
         canvas_obj.setFont("Helvetica-Bold", 12)
         label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 12) + 16
@@ -132,7 +133,7 @@ def payment_invoice(request, pk):
         rightMargin=40,
         topMargin=150,
         bottomMargin=45,
-        title=f"{'Air Cargo Invoice' if is_air_cargo else 'Shipment Invoice'} {payment.invoice_number}",
+        title=f"{'Air Cargo Invoice' if is_air_cargo else 'Ocean Freight Invoice'} {payment.invoice_number}",
     )
 
     bill_to_lines = [
@@ -147,7 +148,7 @@ def payment_invoice(request, pk):
     bill_to = Paragraph("<br/>".join(bill_to_lines), normal)
 
     invoice_meta_lines = [
-        f"<b>{'Air Cargo Invoice No' if is_air_cargo else 'Shipment Invoice No'}:</b> {payment.invoice_number}",
+        f"<b>{'Air Cargo Invoice No' if is_air_cargo else 'Ocean Freight Invoice No'}:</b> {payment.invoice_number}",
         f"<b>Invoice Date:</b> {issue_date.strftime('%Y-%m-%d')}",
         f"<b>Payment Due:</b> {due_date.strftime('%Y-%m-%d')}",
         f"<b>Amount Due (USD):</b> ${amount_due:,.2f}",
@@ -161,53 +162,32 @@ def payment_invoice(request, pk):
 
     if is_air_cargo:
         cargo_detail_rows = [
-            ["AIR CARGO DETAILS", "", "", "", "", ""],
-            [
-                "Item Number",
-                loading.item_number or "",
-                "CTNs",
-                loading.ctns if loading.ctns is not None else "",
-                "Loading Date",
-                display_date(loading.loading_date),
-            ],
-            [
-                "Description",
-                table_cell(loading.item_description or ""),
-                "",
-                "",
-                "",
-                "",
-            ],
+            ["AIR CARGO DETAILS", "", "", ""],
             [
                 "Origin",
                 loading.origin or "",
                 "Destination",
                 loading.destination or "",
-                "Airline",
-                loading.airline or "",
+            ],
+            [
+                "Package Count",
+                loading.ctns if loading.ctns is not None else "",
+                "Gross Weight",
+                (
+                    f"{loading.gross_weight:.2f} KGS"
+                    if loading.gross_weight is not None
+                    else ""
+                ),
             ],
         ]
-        cargo_detail_spans = [
-            ("SPAN", (0, 0), (-1, 0)),
-            ("SPAN", (1, 2), (-1, 2)),
-        ]
-        if loading.size_per_carton:
-            size_row_index = len(cargo_detail_rows)
-            cargo_detail_rows.append(
-                ["Size per Carton", loading.size_per_carton, "", "", "", ""]
-            )
-            cargo_detail_spans.append(
-                ("SPAN", (1, size_row_index), (-1, size_row_index))
-            )
+        cargo_detail_spans = [("SPAN", (0, 0), (-1, 0))]
         cargo_detail_col_widths = [
-            doc.width * 0.13,
-            doc.width * 0.20,
-            doc.width * 0.10,
-            doc.width * 0.17,
-            doc.width * 0.15,
-            doc.width * 0.25,
+            doc.width * 0.18,
+            doc.width * 0.32,
+            doc.width * 0.18,
+            doc.width * 0.32,
         ]
-        cargo_detail_label_columns = [0, 2, 4]
+        cargo_detail_label_columns = [0, 2]
     else:
         cargo_detail_rows = [
             ["SHIPMENT DETAILS", "", "", ""],
@@ -335,13 +315,12 @@ def payment_invoice(request, pk):
         f"{freight_amount:,.2f}" if freight_amount is not None else "—"
     )
 
-    route = f"{loading.origin or '—'} to {loading.destination or '—'}"
     if is_air_cargo:
         freight_item_cell = table_markup("<b>Air Cargo Freight Charges</b>")
         qty_header = "Gross Weight (KGS)"
         rate_header = "Rate (per kg)"
     else:
-        freight_item_cell = table_cell(f"Shipment Charges ({route})")
+        freight_item_cell = table_cell("Ocean Freight Charges")
         qty_header = "Quantity" if flow == "fcl" else "CBM"
         rate_header = "Rate"
 
@@ -485,6 +464,7 @@ def payment_invoice(request, pk):
     )
     return response
 
+
 def payment_receipt(request, transaction_id):
     transaction = get_object_or_404(
         PaymentTransaction.objects.select_related(
@@ -602,13 +582,15 @@ def payment_receipt(request, transaction_id):
         normal,
     )
 
+    is_air_cargo = getattr(loading, "cargo_type", None) == "air_cargo"
     payment_lines = [
         "<b>PAYMENT DETAILS</b>",
-        f"Shipment Invoice No: {payment.invoice_number}",
-        f"Container Number: {loading.container_number or '—'}",
+        f"{'Air Cargo' if is_air_cargo else 'Ocean Freight'} Invoice No: {payment.invoice_number}",
         f"Payment Date: {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
         f"Method: {transaction.get_payment_method_display()}",
     ]
+    if not is_air_cargo:
+        payment_lines.insert(2, f"Container Number: {loading.container_number or '—'}")
     if transaction.reference:
         payment_lines.append(f"Reference: {transaction.reference}")
     payment_details = Paragraph("<br/>".join(payment_lines), normal)
@@ -633,17 +615,26 @@ def payment_receipt(request, transaction_id):
     )
 
     flow = getattr(loading, "flow_type", None)
-    shipment_lines = [
-        "<b>SHIPMENT</b>",
-        f"Route: {loading.origin} to {loading.destination}",
-        f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
-    ]
-    if flow == "fcl":
+    if is_air_cargo:
+        shipment_lines = [
+            "<b>SHIPMENT</b>",
+            f"Origin: {loading.origin or '—'}",
+            f"Destination: {loading.destination or '—'}",
+            f"Package Count: {loading.ctns if loading.ctns is not None else '—'}",
+            f"Gross Weight: {f'{loading.gross_weight:.2f} KGS' if loading.gross_weight is not None else '—'}",
+        ]
+    else:
+        shipment_lines = [
+            "<b>SHIPMENT</b>",
+            f"Route: {loading.origin} to {loading.destination}",
+            f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
+        ]
+    if not is_air_cargo and flow == "fcl":
         if loading.container_size:
             shipment_lines.append(
                 f"Container Size: {loading.get_container_size_display()}"
             )
-    else:
+    elif not is_air_cargo:
         cbm_value = f"{loading.weight:.2f} CBM" if loading.weight is not None else "—"
         shipment_lines.append(f"CBM: {cbm_value}")
     shipment_details = Paragraph("<br/>".join(shipment_lines), normal)
@@ -714,6 +705,7 @@ def payment_receipt(request, transaction_id):
         f'{disposition}; filename="{client_id}_RCT_{receipt_digits}.pdf"'
     )
     return response
+
 
 def quote_pdf(request, quote_id):
     quote = get_object_or_404(Quote.objects.select_related("client"), pk=quote_id)
@@ -840,10 +832,6 @@ def quote_pdf(request, quote_id):
         f"<b>Cargo Type:</b> {quote.get_cargo_type_display()}",
         f"<b>Route:</b> {(quote.origin or '—')} to {(quote.destination or '—')}",
     ]
-    if quote.cargo_type == "air_cargo":
-        meta_lines.append(f"<b>Item Number:</b> {quote.item_number or '—'}")
-        if quote.airline:
-            meta_lines.append(f"<b>Airline:</b> {quote.airline}")
     meta = Paragraph("<br/>".join(meta_lines), normal)
 
     info_table = Table(
@@ -917,7 +905,7 @@ def quote_pdf(request, quote_id):
     route = f"{quote.origin or '—'} to {quote.destination or '—'}"
     charge_label = "AIR CARGO" if is_air_cargo else "FREIGHT CHARGE"
     description_lines = [f"<b>{charge_label}</b>"]
-    if quote.item_description:
+    if quote.item_description and not is_air_cargo:
         description_lines.append(
             f"Description of Items: {escape(quote.item_description)}"
         )

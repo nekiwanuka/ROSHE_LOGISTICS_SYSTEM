@@ -31,6 +31,9 @@
                                         value="{{ obj.pk }}"
                                         data-cargo-type="{{ obj.cargo_type|default:'' }}"
                                         data-flow-type="{{ obj.flow_type|default:'' }}"
+                                        data-currency="{{ obj.currency|default:'USD' }}"
+                                        data-fcl-total="{{ obj.fcl_freight_total|default:'' }}"
+                                        data-fcl-count="{{ obj.fcl_container_count|default:'0' }}"
                                         data-item-number="{{ obj.item_number|default:'' }}"
                                         data-description="{{ obj.item_description|default:'' }}"
                                         data-origin="{{ obj.origin|default:'' }}"
@@ -249,8 +252,18 @@
                 if (amountPreview && !{{ payment|yesno:"true,false" }}) amountPreview.value = 'Will calculate after saving';
             } else if (flow === 'fcl') {
                 setGroupEnabled(cbmGroup, cbmInput, false);
-                setGroupEnabled(containerGroup, containerInput, true);
-                if (amountPreview && !{{ payment|yesno:"true,false" }}) amountPreview.value = 'Will calculate after saving';
+                const hasContainerRows = parseMoney(selected.dataset.fclTotal) > 0;
+                setGroupEnabled(containerGroup, containerInput, !hasContainerRows);
+                if (amountPreview && !{{ payment|yesno:"true,false" }}) {
+                    if (hasContainerRows) {
+                        const freight = parseMoney(selected.dataset.fclTotal);
+                        const fees = parseMoney(documentHandlingInput && documentHandlingInput.value);
+                        const pvoc = parseMoney(pvocFeeInput && pvocFeeInput.value) * parseMoney(selected.dataset.fclCount);
+                        amountPreview.value = (selected.dataset.currency || 'USD') + ' ' + (freight + fees + pvoc).toFixed(2);
+                    } else {
+                        amountPreview.value = 'Will calculate after saving';
+                    }
+                }
             } else {
                 // No cargo selected yet (or legacy data) -> show both, no browser-required.
                 if (cbmGroup) cbmGroup.style.display = '';
@@ -265,6 +278,9 @@
         if (loadingSelect) {
             loadingSelect.addEventListener('change', updateRateFields);
         }
+        [documentHandlingInput, pvocFeeInput].forEach(function(input) {
+            if (input) input.addEventListener('input', updateRateFields);
+        });
         updateRateFields();
     })();
 </script>

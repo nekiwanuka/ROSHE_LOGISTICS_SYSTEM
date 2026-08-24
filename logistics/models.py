@@ -314,7 +314,7 @@ class Loading(models.Model):
         super().clean()
         errors = {}
         if self.cargo_type == "freight_cargo":
-            if not (self.container_number or "").strip():
+            if self.flow_type != "fcl" and not (self.container_number or "").strip():
                 errors["container_number"] = (
                     "Container number is required for Freight Cargo."
                 )
@@ -329,6 +329,69 @@ class Loading(models.Model):
         self.destination = _normalize_sentence_case(self.destination)
         self.airline = _normalize_title_case(self.airline)
         super().save(*args, **kwargs)
+
+    @property
+    def fcl_freight_total(self):
+        if self.pk:
+            line_total = self.container_lines.aggregate(total=Sum("line_total"))[
+                "total"
+            ]
+            if line_total is not None:
+                return line_total
+        return None
+
+    @property
+    def fcl_container_count(self):
+        if not self.pk:
+            return 0
+        return sum(line.quantity for line in self.container_lines.all())
+
+    @property
+    def fcl_pvoc_total(self):
+        if not self.pk:
+            return Decimal("0")
+        return sum(
+            (
+                Decimal(line.quantity) * (line.pvoc_per_container or Decimal("0"))
+                for line in self.container_lines.all()
+            ),
+            Decimal("0"),
+        )
+
+
+class LoadingContainerLine(models.Model):
+    loading = models.ForeignKey(
+        Loading, on_delete=models.CASCADE, related_name="container_lines"
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    container_size = models.CharField(max_length=20, choices=CONTAINER_SIZE_CHOICES)
+    rate_per_container = models.DecimalField(max_digits=12, decimal_places=2)
+    pvoc_per_container = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, blank=True
+    )
+    container_numbers = models.TextField()
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["pk"]
+
+    def save(self, *args, **kwargs):
+        self.container_numbers = ", ".join(
+            part.strip().upper()
+            for part in self.container_numbers.replace("\n", ",").split(",")
+            if part.strip()
+        )
+        self.line_total = Decimal(self.quantity) * self.rate_per_container
+        super().save(*args, **kwargs)
+
+    @property
+    def total_amount(self):
+        return Decimal(self.quantity) * (
+            self.rate_per_container + (self.pvoc_per_container or Decimal("0"))
+        )
+
+    def __str__(self):
+        return f"{self.quantity} x {self.get_container_size_display()}"
 
 
 class Transit(models.Model):
@@ -435,7 +498,7 @@ class Payment(models.Model):
 
     @property
     def invoice_number(self):
-        """Return shipment invoice number formatted as YYMM###.
+        """Return ocean freight invoice number formatted as YYMM###.
 
         - YY: last two digits of year
         - MM: two-digit month
@@ -489,8 +552,10 @@ class Payment(models.Model):
                 and self.loading.weight is not None
             ):
                 freight_amount = self.loading.weight * self.rate_per_cbm
-            elif flow == "fcl" and self.rate_per_container is not None:
-                freight_amount = self.rate_per_container
+            elif flow == "fcl":
+                freight_amount = self.loading.fcl_freight_total
+                if freight_amount is None and self.rate_per_container is not None:
+                    freight_amount = self.rate_per_container
 
         if freight_amount is not None:
             self.amount_charged = freight_amount + fee + pvoc_fee
@@ -509,6 +574,15 @@ class Payment(models.Model):
             and self.loading.weight is not None
         ):
             return self.loading.weight * pvoc_fee
+        if getattr(self.loading, "flow_type", None) == "fcl":
+            container_count = sum(
+                line.quantity for line in self.loading.container_lines.all()
+            )
+            if container_count:
+                line_pvoc_total = self.loading.fcl_pvoc_total
+                if line_pvoc_total:
+                    return line_pvoc_total
+                return Decimal(container_count) * pvoc_fee
         return pvoc_fee
 
 
@@ -656,6 +730,10 @@ class Quote(models.Model):
         )
         fee = fee or 0
         pvoc_fee = 0 if self.cargo_type == "air_cargo" else (self.pvoc_fee or 0)
+        if self.flow_type == "fcl" and self.pk:
+            container_count = sum(line.quantity for line in self.container_lines.all())
+            if container_count:
+                pvoc_fee *= container_count
         quoted = None
         if self.cargo_type == "air_cargo":
             quantity = self.air_rate_quantity
@@ -667,13 +745,39 @@ class Quote(models.Model):
             and self.cbm is not None
         ):
             quoted = (self.cbm * self.rate_per_cbm) + fee + (self.cbm * pvoc_fee)
-        elif self.flow_type == "fcl" and self.rate_per_container is not None:
-            quoted = self.rate_per_container + fee + pvoc_fee
+        elif self.flow_type == "fcl":
+            freight_total = self.fcl_freight_total
+            if freight_total is not None:
+                quoted = freight_total + fee + (self.fcl_pvoc_total or pvoc_fee)
+            elif self.rate_per_container is not None:
+                quoted = self.rate_per_container + fee + pvoc_fee
 
         if quoted is not None:
             self.amount_quoted = quoted
 
         super().save(*args, **kwargs)
+
+    @property
+    def fcl_freight_total(self):
+        if self.pk:
+            line_total = self.container_lines.aggregate(total=Sum("line_total"))[
+                "total"
+            ]
+            if line_total is not None:
+                return line_total
+        return None
+
+    @property
+    def fcl_pvoc_total(self):
+        if not self.pk:
+            return Decimal("0")
+        return sum(
+            (
+                Decimal(line.quantity) * (line.pvoc_per_container or Decimal("0"))
+                for line in self.container_lines.all()
+            ),
+            Decimal("0"),
+        )
 
     @property
     def air_rate_quantity(self):
@@ -690,6 +794,41 @@ class Quote(models.Model):
         if self.air_rate_basis == "kg":
             return "KGS"
         return self.get_cargo_unit_display() or "Package Type"
+
+
+class QuoteContainerLine(models.Model):
+    quote = models.ForeignKey(
+        Quote, on_delete=models.CASCADE, related_name="container_lines"
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    container_size = models.CharField(max_length=20, choices=CONTAINER_SIZE_CHOICES)
+    rate_per_container = models.DecimalField(max_digits=12, decimal_places=2)
+    pvoc_per_container = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, blank=True
+    )
+    container_numbers = models.TextField()
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["pk"]
+
+    def save(self, *args, **kwargs):
+        self.container_numbers = ", ".join(
+            part.strip().upper()
+            for part in self.container_numbers.replace("\n", ",").split(",")
+            if part.strip()
+        )
+        self.line_total = Decimal(self.quantity) * self.rate_per_container
+        super().save(*args, **kwargs)
+
+    @property
+    def total_amount(self):
+        return Decimal(self.quantity) * (
+            self.rate_per_container + (self.pvoc_per_container or Decimal("0"))
+        )
+
+    def __str__(self):
+        return f"{self.quantity} x {self.get_container_size_display()}"
 
 
 class PaymentTransaction(models.Model):

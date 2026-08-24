@@ -65,9 +65,7 @@
                 <div class="card-body small">
                     <div><strong>Cargo Type:</strong> {{ quote.get_cargo_type_display }}</div>
                     <div><strong>Currency:</strong> {{ quote.currency|default:"USD" }}</div>
-                    {% if quote.cargo_type == 'air_cargo' %}
-                    <div><strong>Item #:</strong> {{ quote.item_number|default:"—" }}</div>
-                    {% else %}
+                    {% if quote.cargo_type != 'air_cargo' %}
                     <div><strong>Flow:</strong> {{ quote.get_flow_type_display }}</div>
                     {% endif %}
                     {% if quote.cargo_type == 'air_cargo' %}
@@ -75,14 +73,15 @@
                     {% else %}
                     <div><strong>Destination:</strong> {{ quote.destination }}</div>
                     {% endif %}
-                    <div><strong>Expected Loading Date:</strong> {{ quote.loading_date|date:"Y-m-d"|default:"—" }}</div>
                     {% if quote.cargo_type == 'air_cargo' %}
-                        <div><strong>Package Count:</strong> {{ quote.ctns|default:"—" }} {{ quote.get_cargo_unit_display|default:"" }}</div>
+                        <div><strong>Package Count:</strong> {{ quote.ctns|default:"—" }}</div>
                         <div><strong>Gross Weight:</strong> {{ quote.gross_weight|default:"—" }} KGS</div>
                         <div><strong>Rate Basis:</strong> {{ quote.get_air_rate_basis_display|default:"—" }}</div>
-                        <div><strong>Airline:</strong> {{ quote.airline|default:"—" }}</div>
                     {% elif quote.flow_type == 'lcl' %}
+                        <div><strong>Expected Loading Date:</strong> {{ quote.loading_date|date:"Y-m-d"|default:"—" }}</div>
                         <div><strong>Client CBM:</strong> {{ quote.cbm|default:"—" }}</div>
+                    {% else %}
+                        <div><strong>Expected Loading Date:</strong> {{ quote.loading_date|date:"Y-m-d"|default:"—" }}</div>
                     {% endif %}
                 </div>
             </div>
@@ -103,6 +102,20 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% if breakdown.flow == 'fcl' and breakdown.container_lines %}
+                                {% for line in breakdown.container_lines %}
+                                <tr>
+                                    <td class="text-center fw-semibold">{{ forloop.counter }}</td>
+                                    <td>
+                                        FCL FREIGHT - {{ line.get_container_size_display }}
+                                        {% if line.container_numbers %}<div class="text-muted small">Container No(s): {{ line.container_numbers }}</div>{% endif %}
+                                        <div class="text-muted small">PVOC / Container: {{ quote.currency|default:"USD" }} {{ line.pvoc_per_container|floatformat:2 }}</div>
+                                    </td>
+                                    <td class="text-end">{{ line.quantity }} Container{{ line.quantity|pluralize }} &middot; {{ quote.currency|default:"USD" }} {{ line.rate_per_container|floatformat:2 }} each</td>
+                                    <td class="text-end">{{ line.total_amount|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
                                 <tr>
                                     <td class="text-center fw-semibold">1</td>
                                     <td>
@@ -113,7 +126,9 @@
                                         {% else %}
                                             FREIGHT CHARGE
                                         {% endif %}
+                                        {% if breakdown.cargo_type != 'air_cargo' %}
                                         <div class="text-muted small">Description of Items: {{ quote.item_description|default:"—" }}</div>
+                                        {% endif %}
                                     </td>
                                     <td class="text-end">
                                         {% if breakdown.cargo_type == 'air_cargo' %}
@@ -126,6 +141,7 @@
                                     </td>
                                     <td class="text-end">{% if breakdown.freight_amount is not None %}{{ breakdown.freight_amount|floatformat:2 }}{% else %}—{% endif %}</td>
                                 </tr>
+                                {% endif %}
                                 {% if breakdown.fee and breakdown.fee > 0 %}
                                 <tr>
                                     <td class="text-center fw-semibold">2</td>

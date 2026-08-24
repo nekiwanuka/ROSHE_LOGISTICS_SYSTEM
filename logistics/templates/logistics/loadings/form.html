@@ -88,6 +88,16 @@
                                     {{ form.cargo_type }}
                                     {% if form.cargo_type.errors %}<div class="text-danger">{{ form.cargo_type.errors }}</div>{% endif %}
                                 </div>
+                                <div class="col-md-6 freight-cargo-field">
+                                    <label for="{{ form.port_of_loading.id_for_label }}" class="form-label">POL *</label>
+                                    {{ form.port_of_loading }}
+                                    {% if form.port_of_loading.errors %}<div class="text-danger">{{ form.port_of_loading.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6 freight-cargo-field">
+                                    <label for="{{ form.port_of_discharge.id_for_label }}" class="form-label">Destination *</label>
+                                    {{ form.port_of_discharge }}
+                                    {% if form.port_of_discharge.errors %}<div class="text-danger">{{ form.port_of_discharge.errors }}</div>{% endif %}
+                                </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.client.id_for_label }}" class="form-label">Client *</label>
                                     {{ form.client }}
@@ -129,6 +139,32 @@
                                     {% if form.container_size.errors %}<div class="text-danger">{{ form.container_size.errors }}</div>{% endif %}
                                     <p class="field-hint">Optional — helps downstream billing and container tracking.</p>
                                 </div>
+                                <div class="col-12" id="fcl-container-lines">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label fw-semibold mb-0">FCL Containers *</label>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-container-row"><i class="bi bi-plus-lg"></i> Add Container</button>
+                                    </div>
+                                    {{ container_formset.management_form }}
+                                    {% if container_formset.non_form_errors %}<div class="alert alert-warning py-2">{{ container_formset.non_form_errors }}</div>{% endif %}
+                                    <div id="container-rows">
+                                        {% for container_form in container_formset %}
+                                        <div class="container-row border rounded p-3 mb-2 {% if container_form.DELETE.value %}d-none{% endif %}">
+                                            {{ container_form.id }}
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-md-1"><label class="form-label">Item No.</label>{{ container_form.quantity }}<input class="form-control" value="{{ forloop.counter }}" readonly></div>
+                                                <div class="col-md-2"><label class="form-label">Container No *</label>{{ container_form.container_numbers }}{{ container_form.container_numbers.errors }}</div>
+                                                <div class="col-md-2"><label class="form-label">Container Type</label>{{ container_form.container_size }}{{ container_form.container_size.errors }}</div>
+                                                <div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_form.rate_per_container }}{{ container_form.rate_per_container.errors }}</div>
+                                                <div class="col-md-2"><label class="form-label">PVOC</label>{{ container_form.pvoc_per_container }}{{ container_form.pvoc_per_container.errors }}</div>
+                                                <div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div>
+                                                <div class="col-md-1 text-end">{{ container_form.DELETE.as_hidden }}<button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <template id="empty-container-row"><div class="container-row border rounded p-3 mb-2"><div class="row g-2 align-items-end"><div class="col-md-1"><label class="form-label">Item No.</label>{{ container_formset.empty_form.quantity }}<input class="form-control" value="Auto" readonly></div><div class="col-md-2"><label class="form-label">Container No *</label>{{ container_formset.empty_form.container_numbers }}</div><div class="col-md-2"><label class="form-label">Container Type</label>{{ container_formset.empty_form.container_size }}</div><div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_formset.empty_form.rate_per_container }}</div><div class="col-md-2"><label class="form-label">PVOC</label>{{ container_formset.empty_form.pvoc_per_container }}</div><div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div><div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div></div></div></template>
+                                    <p class="field-hint">Use Add Container for each additional full container.</p>
+                                </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.origin.id_for_label }}" class="form-label" id="origin-label">Origin *</label>
                                     {{ form.origin }}
@@ -155,15 +191,10 @@
                         <div class="loading-form-section">
                             <div class="section-heading">
                                 <span class="section-eyebrow">03 · Cargo Description</span>
-                                <p class="section-subtitle">Specify commodity details, packaging notes, or special handling instructions.</p>
+                                <p class="section-subtitle">Enter shipment quantities and handling details.</p>
                             </div>
                             <div class="row g-4">
-                                <div class="col-md-6 air-cargo-field">
-                                    <label for="{{ form.item_number.id_for_label }}" class="form-label">Item Number *</label>
-                                    {{ form.item_number }}
-                                    {% if form.item_number.errors %}<div class="text-danger">{{ form.item_number.errors }}</div>{% endif %}
-                                </div>
-                                <div class="col-12">
+                                <div class="col-12 freight-cargo-field">
                                     <label for="{{ form.item_description.id_for_label }}" class="form-label" id="description-label">Item Description</label>
                                     {{ form.item_description }}
                                     {% if form.item_description.errors %}<div class="text-danger">{{ form.item_description.errors }}</div>{% endif %}
@@ -180,11 +211,6 @@
                                     {% if form.gross_weight.errors %}<div class="text-danger">{{ form.gross_weight.errors }}</div>{% endif %}
                                     <p class="field-hint">Required for every air cargo item and always measured in KGS.</p>
                                 </div>
-                                <div class="col-md-6 air-cargo-field" id="field-cargo-unit">
-                                    <label for="{{ form.cargo_unit.id_for_label }}" class="form-label">Package Type</label>
-                                    {{ form.cargo_unit }}
-                                    {% if form.cargo_unit.errors %}<div class="text-danger">{{ form.cargo_unit.errors }}</div>{% endif %}
-                                </div>
                                 <div class="col-md-6 freight-cargo-field" id="field-commodity">
                                     <label for="{{ form.commodity.id_for_label }}" class="form-label">Cargo Type <span class="text-muted">(optional)</span></label>
                                     {{ form.commodity }}
@@ -194,7 +220,7 @@
                                     <label for="{{ form.air_rate_basis.id_for_label }}" class="form-label">Rate Basis</label>
                                     {{ form.air_rate_basis }}
                                     {% if form.air_rate_basis.errors %}<div class="text-danger">{{ form.air_rate_basis.errors }}</div>{% endif %}
-                                    <p class="field-hint">Choose whether the rate is charged per KGS or per selected package type.</p>
+                                    <p class="field-hint">Choose whether the rate is charged per KGS or per package.</p>
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
                                     <label for="{{ form.rate_per_kg.id_for_label }}" class="form-label" id="rate-label">Rate *</label>
@@ -205,12 +231,6 @@
                                     <label for="{{ form.handling_fees.id_for_label }}" class="form-label">Handling Fees</label>
                                     {{ form.handling_fees }}
                                     {% if form.handling_fees.errors %}<div class="text-danger">{{ form.handling_fees.errors }}</div>{% endif %}
-                                    <p class="field-hint">Optional.</p>
-                                </div>
-                                <div class="col-md-6 air-cargo-field">
-                                    <label for="{{ form.airline.id_for_label }}" class="form-label">Airline</label>
-                                    {{ form.airline }}
-                                    {% if form.airline.errors %}<div class="text-danger">{{ form.airline.errors }}</div>{% endif %}
                                     <p class="field-hint">Optional.</p>
                                 </div>
                                 <div class="col-md-6 air-cargo-field">
@@ -226,9 +246,9 @@
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
                             {% if app_perms.create_invoices %}
-                            <div class="form-check align-self-center me-md-auto" id="create-air-invoice-option" style="display: none;">
-                                <input class="form-check-input" type="checkbox" name="create_air_invoice" value="1" id="create-air-invoice" {% if create_air_invoice %}checked{% endif %}>
-                                <label class="form-check-label" for="create-air-invoice">Create invoice after saving</label>
+                            <div class="form-check align-self-center me-md-auto" id="create-invoice-option" style="display: none;">
+                                <input class="form-check-input" type="checkbox" name="create_invoice" value="1" id="create-invoice" {% if create_invoice %}checked{% endif %}>
+                                <label class="form-check-label" for="create-invoice">Create invoice after saving</label>
                             </div>
                             {% endif %}
                             <button type="submit" class="btn btn-primary">
@@ -298,6 +318,7 @@
             var flowField = document.getElementById('field-flow-type');
             var containerNumberField = document.getElementById('field-container-number');
             var containerSizeField = document.getElementById('field-container-size');
+            var containerLines = document.getElementById('fcl-container-lines');
             var originField = document.getElementById('field-origin');
             var airFields = document.querySelectorAll('.air-cargo-field');
             var freightFields = document.querySelectorAll('.freight-cargo-field');
@@ -306,47 +327,46 @@
             var originInput = document.getElementById('id_origin');
             var containerInput = document.getElementById('id_container_number');
             var containerSizeInput = document.getElementById('id_container_size');
-            var itemNumberInput = document.getElementById('id_item_number');
             var descriptionInput = document.getElementById('id_item_description');
             var ctnsInput = document.getElementById('id_ctns');
             var grossWeightInput = document.getElementById('id_gross_weight');
             var rateBasisInput = document.getElementById('id_air_rate_basis');
             var rateInput = document.getElementById('id_rate_per_kg');
-            var createInvoiceOption = document.getElementById('create-air-invoice-option');
-            var createInvoiceInput = document.getElementById('create-air-invoice');
+            var createInvoiceOption = document.getElementById('create-invoice-option');
+            var createInvoiceInput = document.getElementById('create-invoice');
+            var isFcl = !isAirCargo && flow.value === 'fcl';
 
             if (isAirCargo) {
                 flow.value = 'lcl';
             }
 
             if (flowField) flowField.style.display = isAirCargo ? 'none' : '';
-            if (containerNumberField) containerNumberField.style.display = isAirCargo ? 'none' : '';
-            if (containerSizeField) containerSizeField.style.display = isAirCargo ? 'none' : '';
+            if (containerNumberField) containerNumberField.style.display = (!isAirCargo && !isFcl) ? '' : 'none';
+            if (containerSizeField) containerSizeField.style.display = (!isAirCargo && !isFcl) ? '' : 'none';
+            if (containerLines) containerLines.style.display = isFcl ? '' : 'none';
             if (originField) originField.style.display = '';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
             freightFields.forEach(function(field) { field.style.display = isAirCargo ? 'none' : ''; });
-            if (createInvoiceOption) createInvoiceOption.style.display = isAirCargo ? '' : 'none';
-            if (!isAirCargo && createInvoiceInput) createInvoiceInput.checked = false;
+            if (createInvoiceOption) createInvoiceOption.style.display = (isAirCargo || isFcl) ? '' : 'none';
+            if (!isAirCargo && !isFcl && createInvoiceInput) createInvoiceInput.checked = false;
 
             setFieldEnabled(containerInput, !isAirCargo);
             setFieldEnabled(containerSizeInput, !isAirCargo);
-            setFieldEnabled(itemNumberInput, isAirCargo);
             setFieldEnabled(grossWeightInput, isAirCargo);
             setFieldEnabled(rateBasisInput, isAirCargo);
             setFieldEnabled(rateInput, isAirCargo);
 
-            setRequired(containerInput, !isAirCargo);
+            setRequired(containerInput, !isAirCargo && !isFcl);
             setFieldEnabled(originInput, true);
-            setRequired(originInput, !isAirCargo);
-            setRequired(itemNumberInput, isAirCargo);
-            setRequired(descriptionInput, isAirCargo);
+            setRequired(originInput, true);
+            setRequired(descriptionInput, false);
             setRequired(ctnsInput, isAirCargo);
             setRequired(grossWeightInput, isAirCargo);
             setRequired(weightInput, !isAirCargo && flow.value === 'lcl');
             setRequired(rateInput, isAirCargo);
 
-            if (originLabel) originLabel.textContent = isAirCargo ? 'Origin (optional)' : 'Origin *';
-            if (descriptionLabel) descriptionLabel.textContent = isAirCargo ? 'Description of the Items *' : 'Item Description';
+            if (originLabel) originLabel.textContent = 'Origin *';
+            if (descriptionLabel) descriptionLabel.textContent = 'Item Description';
             if (ctnsLabel) ctnsLabel.textContent = isAirCargo ? 'Package Count *' : 'CTNs';
             if (ctnsHint) ctnsHint.textContent = isAirCargo ? 'Number of CTNs, packages, parcels, packs, or sets.' : 'Cartons count.';
 
@@ -366,18 +386,56 @@
             updateAirCargoTotal();
         }
 
+        function updateContainerAmount(row) {
+            var rateInput = row.querySelector('[name$="-rate_per_container"]');
+            var pvocInput = row.querySelector('[name$="-pvoc_per_container"]');
+            var amountInput = row.querySelector('.container-total');
+            if (!amountInput) return;
+            var rate = parseFloat((rateInput && rateInput.value || '0').replace(/,/g, '')) || 0;
+            var pvoc = parseFloat((pvocInput && pvocInput.value || '0').replace(/,/g, '')) || 0;
+            amountInput.value = (rate + pvoc).toFixed(2);
+        }
+
+        function updateAllContainerAmounts() {
+            document.querySelectorAll('.container-row').forEach(updateContainerAmount);
+        }
+
         document.addEventListener('change', function(e) {
             if (e.target && (e.target.id === 'id_flow_type' || e.target.id === 'id_cargo_type')) {
                 toggleLoadingFields();
             }
         });
         document.addEventListener('input', function(e) {
+            if (e.target && (e.target.name || '').match(/-(rate_per_container|pvoc_per_container)$/)) {
+                updateContainerAmount(e.target.closest('.container-row'));
+            }
             if (e.target && ['id_ctns', 'id_gross_weight', 'id_air_rate_basis', 'id_rate_per_kg', 'id_handling_fees', 'id_currency'].indexOf(e.target.id) !== -1) {
                 updateAirCargoTotal();
             }
         });
+        document.addEventListener('click', function(event) {
+            if (event.target.closest('#add-container-row')) {
+                var totalInput = document.getElementById('id_containers-TOTAL_FORMS');
+                var index = parseInt(totalInput.value, 10);
+                document.getElementById('container-rows').insertAdjacentHTML('beforeend', document.getElementById('empty-container-row').innerHTML.replace(/__prefix__/g, index));
+                totalInput.value = index + 1;
+                updateContainerAmount(document.getElementById('container-rows').lastElementChild);
+                return;
+            }
+            var removeButton = event.target.closest('.remove-container-row');
+            if (!removeButton) return;
+            var row = removeButton.closest('.container-row');
+            var deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.value = 'on';
+                row.classList.add('d-none');
+            } else {
+                row.remove();
+            }
+        });
         document.addEventListener('DOMContentLoaded', toggleLoadingFields);
         toggleLoadingFields();
+        updateAllContainerAmounts();
     })();
 </script>
 {% endblock %}

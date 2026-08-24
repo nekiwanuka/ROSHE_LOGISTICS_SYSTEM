@@ -44,6 +44,9 @@ from .forms import (
     LoadingForm,
     PaymentForm,
     PaymentTransactionForm,
+    InvoiceContainerFormSet,
+    LoadingContainerFormSet,
+    QuoteContainerFormSet,
     QuoteInvoiceConversionForm,
     QuoteForm,
     SendDocumentEmailForm,
@@ -59,9 +62,11 @@ from .models import (
     ContainerReturn,
     CustomUser,
     Loading,
+    LoadingContainerLine,
     Payment,
     PaymentTransaction,
     Quote,
+    QuoteContainerLine,
     Transit,
 )
 
@@ -1259,10 +1264,20 @@ def loading_list(request):
 @login_required
 def loading_create(request):
     if request.method == "POST":
-        form = LoadingForm(request.POST)
-        create_air_invoice = request.POST.get("create_air_invoice") == "1"
-        if form.is_valid():
-            if create_air_invoice and not has_app_permission(
+        form = LoadingForm(request.POST, uses_container_lines=True)
+        container_formset = LoadingContainerFormSet(
+            request.POST, instance=form.instance, prefix="containers"
+        )
+        create_invoice = request.POST.get("create_invoice") == "1"
+        form_valid = form.is_valid()
+        is_fcl = (
+            form_valid
+            and form.cleaned_data.get("cargo_type") == "freight_cargo"
+            and form.cleaned_data.get("flow_type") == "fcl"
+        )
+        containers_valid = not is_fcl or container_formset.is_valid()
+        if form_valid and containers_valid:
+            if create_invoice and not has_app_permission(
                 request.user, "create_invoices"
             ):
                 form.add_error(None, "You do not have permission to create invoices.")
@@ -1271,37 +1286,62 @@ def loading_create(request):
                     loading = form.save(commit=False)
                     loading.created_by = request.user
                     loading.save()
+                    if is_fcl:
+                        container_formset.instance = loading
+                        container_formset.save()
+                        first_line = loading.container_lines.first()
+                        loading.container_number = (
+                            first_line.container_numbers if first_line else ""
+                        )
+                        loading.container_size = (
+                            first_line.container_size if first_line else ""
+                        )
+                        loading.save(
+                            update_fields=[
+                                "container_number",
+                                "container_size",
+                                "updated_at",
+                            ]
+                        )
                     log_audit(
                         "loading", "create", loading.id, str(loading), request.user
                     )
 
-                    if create_air_invoice and loading.cargo_type == "air_cargo":
+                    if create_invoice and (loading.cargo_type == "air_cargo" or is_fcl):
                         payment = Payment.objects.create(
                             loading=loading,
                             document_handling_fee=loading.handling_fees or 0,
                             pvoc_fee=0,
-                            amount_charged=loading.air_cargo_total,
+                            amount_charged=(
+                                loading.air_cargo_total
+                                if loading.cargo_type == "air_cargo"
+                                else loading.fcl_freight_total
+                            ),
                             created_by=request.user,
                         )
                         log_audit(
                             "payment", "create", payment.id, str(payment), request.user
                         )
                         messages.success(
-                            request, "Air cargo invoice created successfully"
+                            request, "Cargo and invoice created successfully"
                         )
                         return redirect("payment_detail", pk=payment.id)
 
                 messages.success(request, "Cargo created successfully")
                 return redirect("loading_detail", pk=loading.id)
     else:
-        form = LoadingForm()
+        form = LoadingForm(uses_container_lines=True)
+        container_formset = LoadingContainerFormSet(
+            instance=form.instance, prefix="containers"
+        )
     return render(
         request,
         "logistics/loadings/form.html",
         {
             "form": form,
+            "container_formset": container_formset,
             "title": "Create Loading",
-            "create_air_invoice": request.POST.get("create_air_invoice") == "1",
+            "create_invoice": request.POST.get("create_invoice") == "1",
         },
     )
 
@@ -1330,18 +1370,51 @@ def loading_update(request, pk):
         return redirect("loading_list")
     loading = get_object_or_404(Loading, pk=pk)
     if request.method == "POST":
-        form = LoadingForm(request.POST, instance=loading)
-        if form.is_valid():
-            form.save()
+        form = LoadingForm(request.POST, instance=loading, uses_container_lines=True)
+        container_formset = LoadingContainerFormSet(
+            request.POST, instance=loading, prefix="containers"
+        )
+        form_valid = form.is_valid()
+        is_fcl = (
+            form_valid
+            and form.cleaned_data.get("cargo_type") == "freight_cargo"
+            and form.cleaned_data.get("flow_type") == "fcl"
+        )
+        containers_valid = not is_fcl or container_formset.is_valid()
+        if form_valid and containers_valid:
+            with transaction.atomic():
+                loading = form.save()
+                if is_fcl:
+                    container_formset.save()
+                    first_line = loading.container_lines.first()
+                    loading.container_number = (
+                        first_line.container_numbers if first_line else ""
+                    )
+                    loading.container_size = (
+                        first_line.container_size if first_line else ""
+                    )
+                else:
+                    loading.container_lines.all().delete()
+                loading.save()
+                if hasattr(loading, "payment"):
+                    loading.payment.save()
             messages.success(request, "Loading updated successfully")
             log_audit("loading", "update", loading.id, str(loading), request.user)
             return redirect("loading_detail", pk=loading.id)
     else:
-        form = LoadingForm(instance=loading)
+        form = LoadingForm(instance=loading, uses_container_lines=True)
+        container_formset = LoadingContainerFormSet(
+            instance=loading, prefix="containers"
+        )
     return render(
         request,
         "logistics/loadings/form.html",
-        {"form": form, "title": "Update Loading", "loading": loading},
+        {
+            "form": form,
+            "container_formset": container_formset,
+            "title": "Update Loading",
+            "loading": loading,
+        },
     )
 
 
@@ -1726,7 +1799,7 @@ def payment_invoice_whatsapp(request, pk):
     )
     invoice_full_url = request.build_absolute_uri(invoice_preview_path)
     is_air_cargo = getattr(loading, "cargo_type", None) == "air_cargo"
-    invoice_label = "Air Cargo Invoice" if is_air_cargo else "Shipment Invoice"
+    invoice_label = "Air Cargo Invoice" if is_air_cargo else "Ocean Freight Invoice"
     cargo_label = "Item" if is_air_cargo else "Container"
     cargo_value = loading.item_number if is_air_cargo else loading.container_number
 
@@ -1913,7 +1986,10 @@ def whatsapp_webhook(request):
 @login_required
 def payment_invoice(request, pk):
     payment = get_object_or_404(
-        Payment.objects.select_related("loading__client"), pk=pk
+        Payment.objects.select_related("loading__client").prefetch_related(
+            "loading__container_lines"
+        ),
+        pk=pk,
     )
     preview_param = (request.GET.get("preview") or "").strip().lower()
     preview = preview_param in {"1", "true", "yes", "y"}
@@ -1928,7 +2004,7 @@ def payment_invoice(request, pk):
     fee = (
         loading.handling_fees if is_air_cargo else payment.document_handling_fee
     ) or 0
-    pvoc_fee = Decimal("0") if is_air_cargo else payment.pvoc_total
+    pvoc_total = Decimal("0") if is_air_cargo else payment.pvoc_total
     currency = loading.currency or "USD"
 
     primary = colors.HexColor("#003366")
@@ -1995,20 +2071,20 @@ def payment_invoice(request, pk):
         )
         canvas_obj.drawString(company_x, top - 36, "www.roshegroup.com")
 
-        # Shipment invoice label (yellow background, black text)
+        # Keep the invoice label on its own row below the company contact block.
         label_text = (
             f"AIR CARGO INVOICE {payment.invoice_number}"
             if is_air_cargo
-            else f"SHIPMENT INVOICE {payment.invoice_number}"
+            else f"OCEAN FREIGHT INVOICE {payment.invoice_number}"
         )
-        canvas_obj.setFont("Helvetica-Bold", 12)
-        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 12) + 16
+        canvas_obj.setFont("Helvetica-Bold", 11)
+        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 11) + 16
         label_h = 20
         label_x = right - label_w
-        label_y = top - 2
+        label_y = top - 55
         canvas_obj.setFillColor(accent)
         canvas_obj.roundRect(
-            label_x, label_y - label_h + 4, label_w, label_h, 6, fill=1, stroke=0
+            label_x, label_y - label_h + 4, label_w, label_h, 4, fill=1, stroke=0
         )
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(label_x + 8, label_y - 10, label_text)
@@ -2016,7 +2092,7 @@ def payment_invoice(request, pk):
         # Accent separator line
         canvas_obj.setStrokeColor(accent)
         canvas_obj.setLineWidth(2)
-        canvas_obj.line(left, top - 52, right, top - 52)
+        canvas_obj.line(left, top - 82, right, top - 82)
 
     def draw_footer(canvas_obj, doc):
         _draw_brand_footer(canvas_obj, doc, primary=primary, accent=accent)
@@ -2032,7 +2108,7 @@ def payment_invoice(request, pk):
         rightMargin=40,
         topMargin=150,
         bottomMargin=45,
-        title=f"{'Air Cargo Invoice' if is_air_cargo else 'Shipment Invoice'} {payment.invoice_number}",
+        title=f"{'Air Cargo Invoice' if is_air_cargo else 'Ocean Freight Invoice'} {payment.invoice_number}",
     )
 
     bill_to_lines = [
@@ -2047,7 +2123,7 @@ def payment_invoice(request, pk):
     bill_to = Paragraph("<br/>".join(bill_to_lines), normal)
 
     invoice_meta_lines = [
-        f"<b>{'Air Cargo Invoice No' if is_air_cargo else 'Shipment Invoice No'}:</b> {payment.invoice_number}",
+        f"<b>{'Air Cargo Invoice No' if is_air_cargo else 'Ocean Freight Invoice No'}:</b> {payment.invoice_number}",
         f"<b>Invoice Date:</b> {issue_date.strftime('%Y-%m-%d')}",
         f"<b>Payment Due:</b> {due_date.strftime('%Y-%m-%d')}",
         f"<b>Payment Terms:</b> {loading.payment_terms or '100% Before Delivery'}",
@@ -2057,6 +2133,7 @@ def payment_invoice(request, pk):
     invoice_meta = Paragraph("<br/>".join(invoice_meta_lines), normal)
 
     flow = getattr(loading, "flow_type", None)
+    container_lines = list(loading.container_lines.all()) if flow == "fcl" else []
 
     def display_date(value):
         return value.strftime("%Y-%m-%d") if value else ""
@@ -2065,26 +2142,14 @@ def payment_invoice(request, pk):
         cargo_detail_rows = [
             ["AIR CARGO DETAILS", "", "", ""],
             [
-                "AWB No.",
-                _display(loading.awb_number or loading.item_number),
-                "Package Count",
-                _display(loading.ctns),
-            ],
-            [
                 "Origin",
                 _display(loading.origin),
                 "Destination",
                 _display(loading.destination),
             ],
             [
-                "Flight Date",
-                _fmt_date(loading.flight_date or loading.loading_date),
-                "Est. Arrival",
-                _fmt_date(loading.estimated_arrival),
-            ],
-            [
-                "Package Type",
-                _cargo_unit_label(loading),
+                "Package Count",
+                _display(loading.ctns),
                 "Gross Weight",
                 (
                     f"{loading.gross_weight:.2f} KGS"
@@ -2092,19 +2157,8 @@ def payment_invoice(request, pk):
                     else "—"
                 ),
             ],
-            ["Airline", _display(loading.airline), "", ""],
-            [
-                "Commodity",
-                _display(loading.commodity or loading.item_description),
-                "",
-                "",
-            ],
         ]
-        cargo_detail_spans = [
-            ("SPAN", (0, 0), (-1, 0)),
-            ("SPAN", (1, 5), (-1, 5)),
-            ("SPAN", (1, 6), (-1, 6)),
-        ]
+        cargo_detail_spans = [("SPAN", (0, 0), (-1, 0))]
         cargo_detail_col_widths = [
             doc.width * 0.18,
             doc.width * 0.32,
@@ -2114,30 +2168,18 @@ def payment_invoice(request, pk):
         cargo_detail_label_columns = [0, 2]
     else:
         cargo_detail_rows = [
-            ["SHIPMENT DETAILS", "", "", ""],
+            ["FREIGHT DETAILS", "", "", ""],
             [
-                "Origin",
-                _display(loading.origin),
-                "Destination",
-                _display(loading.destination),
-            ],
-            [
-                "Container Type",
-                loading.get_container_size_display() if loading.container_size else "—",
-                "Vessel / Voyage",
-                _display(loading.vessel_voyage),
-            ],
-            [
-                "ETD (Estimated)",
-                _fmt_date(loading.etd or loading.loading_date),
+                "Loading Date",
+                _fmt_date(loading.loading_date),
                 "ETA (Estimated)",
                 _fmt_date(loading.eta),
             ],
             [
-                "Container No.",
-                loading.container_number or "TBC",
                 "Cargo Type",
                 _display(loading.commodity),
+                "Total Containers",
+                loading.fcl_container_count or (1 if flow == "fcl" else "—"),
             ],
         ]
         cargo_detail_spans = [
@@ -2228,6 +2270,36 @@ def payment_invoice(request, pk):
         )
     )
 
+    freight_route_table = None
+    if not is_air_cargo:
+        freight_route_table = Table(
+            [
+                ["POL", "Destination"],
+                [
+                    _display(loading.port_of_loading),
+                    _display(loading.port_of_discharge),
+                ],
+            ],
+            colWidths=[doc.width * 0.5, doc.width * 0.5],
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
+        )
+        freight_route_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+
     if is_air_cargo:
         qty_label = (
             _fmt_number(loading.air_rate_quantity, decimals=2)
@@ -2272,25 +2344,86 @@ def payment_invoice(request, pk):
         f"{freight_amount:,.2f}" if freight_amount is not None else "—"
     )
 
-    route = f"{loading.origin or '—'} to {loading.destination or '—'}"
     if is_air_cargo:
         freight_item_cell = table_markup("<b>Air Cargo Freight Charges</b>")
         unit_label = loading.air_rate_unit_label
     else:
-        freight_item_cell = table_cell(f"Shipment Charges ({route})")
+        freight_item_cell = table_cell("Ocean Freight Charges")
         unit_label = "Container" if flow == "fcl" else "CBM"
 
-    items = [
-        ["Description", "Qty", "Unit", "Rate", "Amount"],
-        [
-            freight_item_cell,
-            table_cell(qty_label, table_number),
-            table_cell(unit_label),
-            table_cell(rate_label, table_number),
-            table_cell(freight_amount_label, table_number),
-        ],
-    ]
-    if fee and fee > 0:
+    is_fcl_invoice = flow == "fcl" and not is_air_cargo
+    if is_fcl_invoice:
+        items = [
+            [
+                "ITEM NO.",
+                "CONTAINER NO",
+                "CONTAINER TYPE",
+                "RATE PER CONTAINER",
+                "PVOC",
+                "AMOUNT",
+            ]
+        ]
+        item_number = 1
+        invoice_container_lines = container_lines or [None]
+        for line in invoice_container_lines:
+            quantity = line.quantity if line else 1
+            container_numbers = (
+                [
+                    part.strip()
+                    for part in line.container_numbers.split(",")
+                    if part.strip()
+                ]
+                if line and line.container_numbers
+                else []
+            )
+            container_type = (
+                line.get_container_size_display()
+                if line
+                else loading.get_container_size_display() or "—"
+            )
+            rate = line.rate_per_container if line else payment.rate_per_container
+            pvoc = (
+                (line.pvoc_per_container or Decimal("0"))
+                if line
+                else (payment.pvoc_fee or Decimal("0"))
+            )
+            for container_index in range(quantity):
+                container_number = (
+                    container_numbers[container_index]
+                    if container_index < len(container_numbers)
+                    else "TBC"
+                )
+                items.append(
+                    [
+                        table_cell(item_number),
+                        table_cell(container_number),
+                        table_cell(container_type),
+                        table_cell(
+                            f"{rate:,.2f}" if rate is not None else "—", table_number
+                        ),
+                        table_cell(
+                            f"{pvoc:,.2f}",
+                            table_number,
+                        ),
+                        table_cell(
+                            (f"{rate + pvoc:,.2f}" if rate is not None else "—"),
+                            table_number,
+                        ),
+                    ]
+                )
+                item_number += 1
+    else:
+        items = [["Description", "Qty", "Unit", "Rate", "Amount"]]
+        items.append(
+            [
+                freight_item_cell,
+                table_cell(qty_label, table_number),
+                table_cell(unit_label),
+                table_cell(rate_label, table_number),
+                table_cell(freight_amount_label, table_number),
+            ]
+        )
+    if fee and fee > 0 and not is_fcl_invoice:
         items.append(
             [
                 table_cell(
@@ -2305,36 +2438,49 @@ def payment_invoice(request, pk):
         fee_row_index = len(items) - 1
     else:
         fee_row_index = None
-    if pvoc_fee and pvoc_fee > 0:
+    if pvoc_total and pvoc_total > 0 and not is_fcl_invoice:
         items.append(
             [
                 table_cell("PVOC"),
                 "",
                 "",
                 "",
-                table_cell(f"{pvoc_fee:,.2f}", table_number),
+                table_cell(f"{pvoc_total:,.2f}", table_number),
             ]
         )
         pvoc_row_index = len(items) - 1
     else:
         pvoc_row_index = None
 
-    items_table = Table(
-        items,
-        colWidths=[
+    item_col_widths = (
+        [
+            doc.width * 0.09,
+            doc.width * 0.20,
+            doc.width * 0.18,
+            doc.width * 0.20,
+            doc.width * 0.15,
+            doc.width * 0.18,
+        ]
+        if is_fcl_invoice
+        else [
             doc.width * 0.40,
             doc.width * 0.13,
             doc.width * 0.13,
             doc.width * 0.16,
             doc.width * 0.18,
-        ],
+        ]
+    )
+    items_table = Table(
+        items,
+        colWidths=item_col_widths,
         hAlign="LEFT",
+        cornerRadii=(3, 3, 3, 3),
     )
     item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-        ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+        ("ALIGN", (0, 1), (0, -1), "CENTER"),
         ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
@@ -2350,27 +2496,55 @@ def payment_invoice(request, pk):
     items_table.setStyle(TableStyle(item_styles))
 
     total_amount = payment.amount_charged
-    totals_table = Table(
-        [
-            ["", "", "", "Total", f"{total_amount:,.2f}"],
-            ["", "", "", f"Amount Due ({currency})", f"{amount_due:,.2f}"],
-        ],
-        colWidths=[
-            doc.width * 0.40,
-            doc.width * 0.13,
-            doc.width * 0.13,
-            doc.width * 0.16,
-            doc.width * 0.18,
-        ],
-        hAlign="LEFT",
-    )
+    if is_fcl_invoice:
+        total_rows = []
+        if fee and fee > 0:
+            total_rows.append(
+                ["", "", "", "", "Document & Handling Fees", f"{fee:,.2f}"]
+            )
+        total_rows.extend(
+            [
+                ["", "", "", "", "Total", f"{total_amount:,.2f}"],
+                [
+                    "",
+                    "",
+                    "",
+                    "",
+                    f"Amount Due ({currency})",
+                    f"{amount_due:,.2f}",
+                ],
+            ]
+        )
+        totals_table = Table(
+            total_rows,
+            colWidths=item_col_widths,
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
+        )
+        total_label_column = 4
+    else:
+        totals_table = Table(
+            [
+                ["", "", "", "Total", f"{total_amount:,.2f}"],
+                ["", "", "", f"Amount Due ({currency})", f"{amount_due:,.2f}"],
+            ],
+            colWidths=item_col_widths,
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
+        )
+        total_label_column = 3
     totals_table.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (3, 0), (3, -1), "Helvetica-Bold"),
-                ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
-                ("LINEABOVE", (3, 0), (-1, 0), 0.7, colors.black),
-                ("LINEBELOW", (3, -1), (-1, -1), 0.7, colors.black),
+                (
+                    "FONTNAME",
+                    (total_label_column, 0),
+                    (total_label_column, -1),
+                    "Helvetica-Bold",
+                ),
+                ("ALIGN", (total_label_column, 0), (-1, -1), "RIGHT"),
+                ("LINEABOVE", (total_label_column, 0), (-1, 0), 0.7, colors.black),
+                ("LINEBELOW", (total_label_column, -1), (-1, -1), 0.7, colors.black),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]
@@ -2401,17 +2575,49 @@ def payment_invoice(request, pk):
         ),
     ]
 
-    story = [
-        info_table,
-        Spacer(1, 8),
-        cargo_details_table,
-        Spacer(1, 7),
-        items_table,
-        Spacer(1, 6),
-        totals_table,
-        Spacer(1, 10),
-        *notes,
-    ]
+    story = [info_table, Spacer(1, 8)]
+    if is_air_cargo:
+        story.extend([cargo_details_table, Spacer(1, 7)])
+    elif freight_route_table:
+        story.extend([freight_route_table, Spacer(1, 7)])
+    freight_heading_label = None
+    if is_air_cargo:
+        freight_heading_label = "AIR CARGO FREIGHT DETAILS"
+    elif is_fcl_invoice:
+        freight_heading_label = "FCL FREIGHT DETAILS"
+    elif flow == "lcl":
+        freight_heading_label = "LCL FREIGHT DETAILS"
+    if freight_heading_label:
+        freight_heading_table = Table(
+            [[freight_heading_label]],
+            colWidths=[doc.width],
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
+        )
+        freight_heading_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), primary),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        story.extend([freight_heading_table, Spacer(1, 4)])
+    story.extend(
+        [
+            items_table,
+            Spacer(1, 6),
+            totals_table,
+            Spacer(1, 10),
+            *notes,
+        ]
+    )
 
     # Header + branded footer on all pages
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
@@ -2434,7 +2640,7 @@ def payment_invoice_email(request, pk):
     loading = payment.loading
     client = loading.client
     is_air_cargo = getattr(loading, "cargo_type", None) == "air_cargo"
-    invoice_label = "Air Cargo Invoice" if is_air_cargo else "Shipment Invoice"
+    invoice_label = "Air Cargo Invoice" if is_air_cargo else "Ocean Freight Invoice"
     cargo_label = "item" if is_air_cargo else "container"
     cargo_value = loading.item_number if is_air_cargo else loading.container_number
 
@@ -2573,21 +2779,21 @@ def payment_receipt(request, transaction_id):
 
         # Receipt label (yellow background, black text)
         label_text = f"PAYMENT RECEIPT {transaction.receipt_number}"
-        canvas_obj.setFont("Helvetica-Bold", 12)
-        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 12) + 16
+        canvas_obj.setFont("Helvetica-Bold", 11)
+        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 11) + 16
         label_h = 20
         label_x = right - label_w
-        label_y = top - 2
+        label_y = top - 55
         canvas_obj.setFillColor(accent)
         canvas_obj.roundRect(
-            label_x, label_y - label_h + 4, label_w, label_h, 6, fill=1, stroke=0
+            label_x, label_y - label_h + 4, label_w, label_h, 4, fill=1, stroke=0
         )
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(label_x + 8, label_y - 10, label_text)
 
         canvas_obj.setStrokeColor(accent)
         canvas_obj.setLineWidth(2)
-        canvas_obj.line(left, top - 52, right, top - 52)
+        canvas_obj.line(left, top - 82, right, top - 82)
 
     def draw_footer(canvas_obj, doc):
         _draw_brand_footer(canvas_obj, doc, primary=primary, accent=accent)
@@ -2612,17 +2818,14 @@ def payment_receipt(request, transaction_id):
     )
 
     is_air_cargo = getattr(loading, "cargo_type", None) == "air_cargo"
-    cargo_reference_label = "Item Number" if is_air_cargo else "Container Number"
-    cargo_reference = (
-        loading.item_number if is_air_cargo else loading.container_number
-    ) or "—"
     payment_lines = [
         "<b>PAYMENT DETAILS</b>",
         f"{'Air Cargo' if is_air_cargo else 'Shipment'} Invoice No: {payment.invoice_number}",
-        f"{cargo_reference_label}: {cargo_reference}",
         f"Payment Date: {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
         f"Method: {transaction.get_payment_method_display()}",
     ]
+    if not is_air_cargo:
+        payment_lines.insert(2, f"Container Number: {loading.container_number or '—'}")
     if transaction.reference:
         payment_lines.append(f"Reference: {transaction.reference}")
     payment_details = Paragraph("<br/>".join(payment_lines), normal)
@@ -2648,17 +2851,26 @@ def payment_receipt(request, transaction_id):
     )
 
     flow = getattr(loading, "flow_type", None)
-    shipment_lines = [
-        "<b>SHIPMENT</b>",
-        f"Route: {loading.origin} to {loading.destination}",
-        f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
-    ]
-    if flow == "fcl":
+    if is_air_cargo:
+        shipment_lines = [
+            "<b>SHIPMENT</b>",
+            f"Origin: {loading.origin or '—'}",
+            f"Destination: {loading.destination or '—'}",
+            f"Package Count: {loading.ctns if loading.ctns is not None else '—'}",
+            f"Gross Weight: {f'{loading.gross_weight:.2f} KGS' if loading.gross_weight is not None else '—'}",
+        ]
+    else:
+        shipment_lines = [
+            "<b>SHIPMENT</b>",
+            f"Route: {loading.origin} to {loading.destination}",
+            f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
+        ]
+    if not is_air_cargo and flow == "fcl":
         if loading.container_size:
             shipment_lines.append(
                 f"Container Size: {loading.get_container_size_display()}"
             )
-    else:
+    elif not is_air_cargo:
         cbm_value = f"{loading.weight:.2f} CBM" if loading.weight is not None else "—"
         shipment_lines.append(f"CBM: {cbm_value}")
     shipment_details = Paragraph("<br/>".join(shipment_lines), normal)
@@ -2814,6 +3026,21 @@ def payment_receipt_email(request, transaction_id):
 # ===== QUOTATIONS =====
 
 
+def _active_container_rows(container_formset):
+    return [
+        form.cleaned_data
+        for form in container_formset.forms
+        if form.cleaned_data and not form.cleaned_data.get("DELETE")
+    ]
+
+
+def _set_legacy_container_fields(document, rows):
+    first = rows[0] if rows else None
+    document.container_number = (first.get("container_numbers") or "") if first else ""
+    document.container_size = (first.get("container_size") or "") if first else ""
+    document.rate_per_container = first.get("rate_per_container") if first else None
+
+
 @login_required
 def quote_list(request):
     quotes = Quote.objects.select_related("client", "loading")
@@ -2837,26 +3064,54 @@ def quote_create(request):
         return redirect("quote_list")
     if request.method == "POST":
         form = QuoteForm(request.POST)
-        if form.is_valid():
+        container_formset = QuoteContainerFormSet(
+            request.POST, instance=form.instance, prefix="containers"
+        )
+        form_valid = form.is_valid()
+        is_fcl = (
+            form_valid
+            and form.cleaned_data.get("cargo_type") == "freight_cargo"
+            and form.cleaned_data.get("flow_type") == "fcl"
+        )
+        containers_valid = not is_fcl or container_formset.is_valid()
+        if form_valid and containers_valid:
             quote = form.save(commit=False)
             quote.created_by = request.user
-            quote.save()
+            with transaction.atomic():
+                quote.save()
+                if is_fcl:
+                    container_formset.instance = quote
+                    container_formset.save()
+                    rows = _active_container_rows(container_formset)
+                    _set_legacy_container_fields(quote, rows)
+                    quote.save()
             messages.success(request, "Quotation created successfully")
             log_audit("quote", "create", quote.id, str(quote), request.user)
             return redirect("quote_detail", quote_id=quote.id)
     else:
         form = QuoteForm()
+        container_formset = QuoteContainerFormSet(
+            instance=form.instance, prefix="containers"
+        )
     return render(
         request,
         "logistics/quotations/form.html",
-        {"form": form, "title": "Create Quotation", "quote": None},
+        {
+            "form": form,
+            "container_formset": container_formset,
+            "title": "Create Quotation",
+            "quote": None,
+        },
     )
 
 
 @login_required
 def quote_detail(request, quote_id):
     quote = get_object_or_404(
-        Quote.objects.select_related("client", "loading"), pk=quote_id
+        Quote.objects.select_related("client", "loading").prefetch_related(
+            "container_lines"
+        ),
+        pk=quote_id,
     )
     flow = quote.flow_type
     is_air_cargo = quote.cargo_type == "air_cargo"
@@ -2882,10 +3137,12 @@ def quote_detail(request, quote_id):
         if qty is not None and rate is not None:
             freight_amount = qty * rate
     else:
-        qty = Decimal("1")
-        rate = quote.rate_per_container
+        container_lines = list(quote.container_lines.all())
+        qty = sum(line.quantity for line in container_lines) or Decimal("1")
+        rate = None if container_lines else quote.rate_per_container
         unit_label = "Container"
-        if rate is not None:
+        freight_amount = quote.fcl_freight_total
+        if freight_amount is None and rate is not None:
             freight_amount = rate
 
     total = quote.amount_quoted
@@ -2901,6 +3158,9 @@ def quote_detail(request, quote_id):
             "fee": fee,
             "total": total,
             "cargo_type": quote.cargo_type,
+            "container_lines": (
+                list(quote.container_lines.all()) if flow == "fcl" else []
+            ),
         },
     }
     return render(request, "logistics/quotations/detail.html", context)
@@ -2908,7 +3168,10 @@ def quote_detail(request, quote_id):
 
 @login_required
 def quote_pdf(request, quote_id):
-    quote = get_object_or_404(Quote.objects.select_related("client"), pk=quote_id)
+    quote = get_object_or_404(
+        Quote.objects.select_related("client").prefetch_related("container_lines"),
+        pk=quote_id,
+    )
     client = quote.client
     client_id = getattr(client, "client_id", None) or "NOCLIENT"
     preview = request.GET.get("preview") == "1"
@@ -2981,21 +3244,21 @@ def quote_pdf(request, quote_id):
             if quote.cargo_type == "air_cargo"
             else f"FREIGHT QUOTATION {quote_no}"
         )
-        canvas_obj.setFont("Helvetica-Bold", 12)
-        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 12) + 16
+        canvas_obj.setFont("Helvetica-Bold", 11)
+        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 11) + 16
         label_h = 20
         label_x = right - label_w
-        label_y = top - 2
+        label_y = top - 55
         canvas_obj.setFillColor(accent)
         canvas_obj.roundRect(
-            label_x, label_y - label_h + 4, label_w, label_h, 6, fill=1, stroke=0
+            label_x, label_y - label_h + 4, label_w, label_h, 4, fill=1, stroke=0
         )
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(label_x + 8, label_y - 10, label_text)
 
         canvas_obj.setStrokeColor(accent)
         canvas_obj.setLineWidth(2)
-        canvas_obj.line(left, top - 52, right, top - 52)
+        canvas_obj.line(left, top - 82, right, top - 82)
 
     def draw_page(canvas_obj, doc):
         draw_header(canvas_obj, doc)
@@ -3032,13 +3295,7 @@ def quote_pdf(request, quote_id):
         f"<b>Cargo Type:</b> {quote.get_cargo_type_display()}",
         f"<b>Payment Terms:</b> {quote.payment_terms or '100% Before Shipment'}",
         f"<b>Currency:</b> {quote.currency or 'USD'}",
-        f"<b>Origin:</b> {quote.origin or '—'}",
-        f"<b>Destination:</b> {quote.destination or '—'}",
     ]
-    if quote.cargo_type == "air_cargo":
-        meta_lines.append(f"<b>Item Number:</b> {quote.item_number or '—'}")
-        if quote.airline:
-            meta_lines.append(f"<b>Airline:</b> {quote.airline}")
     meta = Paragraph("<br/>".join(meta_lines), normal)
 
     info_table = Table(
@@ -3063,13 +3320,7 @@ def quote_pdf(request, quote_id):
 
     if quote.cargo_type == "air_cargo":
         shipment_rows = [
-            ["SHIPMENT DETAILS", "", "", ""],
-            [
-                "AWB No.",
-                _display(quote.awb_number or quote.item_number),
-                "Package Count",
-                _display(quote.ctns),
-            ],
+            ["AIR CARGO DETAILS", "", "", ""],
             [
                 "Origin",
                 _display(quote.origin),
@@ -3077,27 +3328,14 @@ def quote_pdf(request, quote_id):
                 _display(quote.destination),
             ],
             [
-                "Flight Date",
-                _fmt_date(quote.flight_date or quote.loading_date),
-                "Est. Arrival",
-                _fmt_date(quote.estimated_arrival),
-            ],
-            [
-                "Package Type",
-                _cargo_unit_label(quote),
+                "Package Count",
+                _display(quote.ctns),
                 "Gross Weight",
                 (
                     f"{quote.gross_weight:.2f} KGS"
                     if quote.gross_weight is not None
                     else "—"
                 ),
-            ],
-            ["Airline", _display(quote.airline), "", ""],
-            [
-                "Commodity",
-                _display(quote.commodity or quote.item_description),
-                "",
-                "",
             ],
         ]
     if quote.cargo_type == "air_cargo":
@@ -3110,6 +3348,7 @@ def quote_pdf(request, quote_id):
                 doc.width * 0.32,
             ],
             hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
         )
         shipment_styles = [
             ("SPAN", (0, 0), (-1, 0)),
@@ -3127,26 +3366,35 @@ def quote_pdf(request, quote_id):
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ]
-        shipment_styles.extend(
-            [
-                ("SPAN", (1, 5), (-1, 5)),
-                ("SPAN", (1, 6), (-1, 6)),
-            ]
-        )
         shipment_table.setStyle(TableStyle(shipment_styles))
     else:
+        freight_heading = (
+            "FCL FREIGHT DETAILS" if quote.flow_type == "fcl" else "SHIPMENT DETAILS"
+        )
         shipment_table = Table(
-            [["SHIPMENT DETAILS"]],
-            colWidths=[doc.width],
+            [
+                [freight_heading, ""],
+                ["POL", "Destination"],
+                [
+                    _display(quote.port_of_loading),
+                    _display(quote.port_of_discharge),
+                ],
+            ],
+            colWidths=[doc.width * 0.5, doc.width * 0.5],
             hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
         )
         shipment_table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, -1), primary),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
-                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), primary),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#EAF0F4")),
+                    ("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
+                    ("INNERGRID", (0, 1), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
                     ("LEFTPADDING", (0, 0), (-1, -1), 6),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                     ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -3190,15 +3438,16 @@ def quote_pdf(request, quote_id):
         )
         unit_label = "CBM"
     else:
-        qty_label = "1"
+        container_lines = list(quote.container_lines.all())
+        qty_label = str(sum(line.quantity for line in container_lines) or 1)
         rate_label = (
             _fmt_number(quote.rate_per_container, decimals=2)
             if quote.rate_per_container is not None
             else "—"
         )
-        freight_amount = (
-            quote.rate_per_container if quote.rate_per_container is not None else None
-        )
+        freight_amount = quote.fcl_freight_total
+        if freight_amount is None:
+            freight_amount = quote.rate_per_container
         unit_label = "Container"
 
     freight_amount_label = (
@@ -3207,41 +3456,95 @@ def quote_pdf(request, quote_id):
     route = f"{quote.origin or '—'} to {quote.destination or '—'}"
     charge_label = "AIR CARGO" if is_air_cargo else "FREIGHT CHARGE"
     description_lines = [f"<b>{charge_label}</b>"]
-    if quote.item_description:
+    if quote.item_description and not is_air_cargo:
         description_lines.append(
             f"Description of Items: {escape(quote.item_description)}"
         )
     freight_item = Paragraph("<br/>".join(description_lines), normal)
 
-    items = [["NO.", "DESCRIPTION", "QTY", "UNIT", "RATE", "AMOUNT"]]
-    charge_rows = [
-        [freight_item, qty_label, unit_label, rate_label, freight_amount_label]
-    ]
-    if fee and fee > 0:
-        fee_label = "HANDLING FEES" if is_air_cargo else "DOCUMENTS FEE"
-        charge_rows.append([fee_label, "", "", "", _fmt_number(fee, decimals=2)])
-    for index, (detail, qty, unit, rate, amount) in enumerate(charge_rows, start=1):
-        items.append([str(index), detail, qty, unit, rate, amount])
+    is_fcl_quote = quote.flow_type == "fcl" and not is_air_cargo
+    if is_fcl_quote:
+        items = [
+            [
+                "ITEM NO.",
+                "CONTAINER NO",
+                "CONTAINER TYPE",
+                "RATE PER CONTAINER",
+                "PVOC",
+                "AMOUNT",
+            ]
+        ]
+        item_number = 1
+        for line in container_lines:
+            container_numbers = [
+                number.strip()
+                for number in line.container_numbers.split(",")
+                if number.strip()
+            ]
+            for container_index in range(line.quantity):
+                container_number = (
+                    container_numbers[container_index]
+                    if container_index < len(container_numbers)
+                    else "—"
+                )
+                items.append(
+                    [
+                        str(item_number),
+                        container_number,
+                        line.get_container_size_display(),
+                        _fmt_number(line.rate_per_container, decimals=2),
+                        _fmt_number(line.pvoc_per_container, decimals=2),
+                        _fmt_number(
+                            line.rate_per_container
+                            + (line.pvoc_per_container or Decimal("0")),
+                            decimals=2,
+                        ),
+                    ]
+                )
+                item_number += 1
+    else:
+        items = [["NO.", "DESCRIPTION", "QTY", "UNIT", "RATE", "AMOUNT"]]
+        charge_rows = [
+            [freight_item, qty_label, unit_label, rate_label, freight_amount_label]
+        ]
+        if fee and fee > 0:
+            fee_label = "HANDLING FEES" if is_air_cargo else "DOCUMENTS FEE"
+            charge_rows.append([fee_label, "", "", "", _fmt_number(fee, decimals=2)])
+        for index, (detail, qty, unit, rate, amount) in enumerate(charge_rows, start=1):
+            items.append([str(index), detail, qty, unit, rate, amount])
 
-    items_table = Table(
-        items,
-        colWidths=[
+    quote_item_col_widths = (
+        [
+            doc.width * 0.09,
+            doc.width * 0.20,
+            doc.width * 0.18,
+            doc.width * 0.20,
+            doc.width * 0.15,
+            doc.width * 0.18,
+        ]
+        if is_fcl_quote
+        else [
             doc.width * 0.08,
             doc.width * 0.40,
             doc.width * 0.12,
             doc.width * 0.12,
             doc.width * 0.13,
             doc.width * 0.15,
-        ],
+        ]
+    )
+
+    items_table = Table(
+        items,
+        colWidths=quote_item_col_widths,
         hAlign="LEFT",
+        cornerRadii=(3, 3, 3, 3),
     )
     quote_item_styles = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("ALIGN", (0, 1), (0, -1), "CENTER"),
-        ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-        ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
+        ("ALIGN", (3 if is_fcl_quote else 4, 1), (-1, -1), "RIGHT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
         ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
@@ -3250,45 +3553,73 @@ def quote_pdf(request, quote_id):
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]
-    if fee and fee > 0:
-        quote_item_styles.append(("SPAN", (1, 2), (4, 2)))
+    if fee and fee > 0 and not is_fcl_quote:
+        quote_item_styles.append(("SPAN", (1, len(items) - 1), (4, len(items) - 1)))
     items_table.setStyle(TableStyle(quote_item_styles))
 
-    totals_table = Table(
-        [
+    if is_fcl_quote:
+        totals_table = Table(
             [
-                f"Grand Total ({quote.currency or 'USD'})",
-                "",
-                "",
-                "",
-                "",
-                _fmt_number(quote.amount_quoted, decimals=2),
+                [
+                    "",
+                    "",
+                    "",
+                    "",
+                    f"Grand Total ({quote.currency or 'USD'})",
+                    _fmt_number(quote.amount_quoted, decimals=2),
+                ]
             ],
-        ],
-        colWidths=[
-            doc.width * 0.08,
-            doc.width * 0.40,
-            doc.width * 0.12,
-            doc.width * 0.12,
-            doc.width * 0.13,
-            doc.width * 0.15,
-        ],
-        hAlign="LEFT",
-    )
-    totals_table.setStyle(
-        TableStyle(
-            [
-                ("SPAN", (0, 0), (4, 0)),
-                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
-                ("ALIGN", (0, 0), (4, 0), "RIGHT"),
-                ("ALIGN", (5, 0), (5, 0), "RIGHT"),
-                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
+            colWidths=quote_item_col_widths,
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
         )
-    )
+        totals_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (4, 0), (5, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (4, 0), (5, 0), 8),
+                    ("ALIGN", (4, 0), (5, 0), "RIGHT"),
+                    ("LINEABOVE", (4, 0), (5, 0), 0.7, colors.HexColor("#C9D3DD")),
+                    ("LINEBELOW", (4, 0), (5, 0), 0.7, colors.HexColor("#C9D3DD")),
+                    ("LINEBEFORE", (4, 0), (4, 0), 0.7, colors.HexColor("#C9D3DD")),
+                    ("LINEBEFORE", (5, 0), (5, 0), 0.7, colors.HexColor("#D9E1E8")),
+                    ("LINEAFTER", (5, 0), (5, 0), 0.7, colors.HexColor("#C9D3DD")),
+                    ("LEFTPADDING", (4, 0), (5, 0), 4),
+                    ("RIGHTPADDING", (4, 0), (5, 0), 6),
+                    ("TOPPADDING", (4, 0), (5, 0), 5),
+                    ("BOTTOMPADDING", (4, 0), (5, 0), 5),
+                ]
+            )
+        )
+    else:
+        totals_table = Table(
+            [
+                [
+                    f"Grand Total ({quote.currency or 'USD'})",
+                    "",
+                    "",
+                    "",
+                    "",
+                    _fmt_number(quote.amount_quoted, decimals=2),
+                ]
+            ],
+            colWidths=quote_item_col_widths,
+            hAlign="LEFT",
+            cornerRadii=(3, 3, 3, 3),
+        )
+        totals_table.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (4, 0)),
+                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                    ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                    ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
 
     notes = [
         Paragraph("<b>Notes / Terms</b>", heading),
@@ -3305,7 +3636,7 @@ def quote_pdf(request, quote_id):
     story.extend(
         [
             items_table,
-            Spacer(1, 6),
+            Spacer(1, 0 if is_fcl_quote else 6),
             totals_table,
             Spacer(1, 10),
             *notes,
@@ -3333,17 +3664,41 @@ def quote_update(request, quote_id):
     )
     if request.method == "POST":
         form = QuoteForm(request.POST, instance=quote)
-        if form.is_valid():
-            form.save()
+        container_formset = QuoteContainerFormSet(
+            request.POST, instance=quote, prefix="containers"
+        )
+        form_valid = form.is_valid()
+        is_fcl = (
+            form_valid
+            and form.cleaned_data.get("cargo_type") == "freight_cargo"
+            and form.cleaned_data.get("flow_type") == "fcl"
+        )
+        containers_valid = not is_fcl or container_formset.is_valid()
+        if form_valid and containers_valid:
+            with transaction.atomic():
+                quote = form.save()
+                if is_fcl:
+                    container_formset.save()
+                    rows = _active_container_rows(container_formset)
+                    _set_legacy_container_fields(quote, rows)
+                else:
+                    quote.container_lines.all().delete()
+                quote.save()
             messages.success(request, "Quotation updated successfully")
             log_audit("quote", "update", quote.id, str(quote), request.user)
             return redirect("quote_detail", quote_id=quote.id)
     else:
         form = QuoteForm(instance=quote)
+        container_formset = QuoteContainerFormSet(instance=quote, prefix="containers")
     return render(
         request,
         "logistics/quotations/form.html",
-        {"form": form, "title": "Update Quotation", "quote": quote},
+        {
+            "form": form,
+            "container_formset": container_formset,
+            "title": "Update Quotation",
+            "quote": quote,
+        },
     )
 
 
@@ -3386,50 +3741,82 @@ def quote_convert_to_invoice(request, quote_id):
         return redirect("payment_detail", pk=existing_payment.pk)
 
     if request.method == "POST":
-        form = QuoteInvoiceConversionForm(request.POST, quote=quote)
-        if form.is_valid():
+        form = QuoteInvoiceConversionForm(
+            request.POST, quote=quote, uses_container_lines=True
+        )
+        container_formset = InvoiceContainerFormSet(request.POST, prefix="containers")
+        form_valid = form.is_valid()
+        is_fcl = quote.cargo_type == "freight_cargo" and quote.flow_type == "fcl"
+        containers_valid = not is_fcl or container_formset.is_valid()
+        if form_valid and containers_valid:
             details = form.cleaned_data
-            container_number = (details.get("container_number") or "").strip().upper()
+            container_rows = _active_container_rows(container_formset) if is_fcl else []
+            if is_fcl:
+                _set_legacy_container_fields(quote, container_rows)
+                container_number = quote.container_number
+            else:
+                container_number = (
+                    (details.get("container_number") or "").strip().upper()
+                )
             if quote.cargo_type == "air_cargo":
                 container_number = ""
             elif not container_number and quote.flow_type == "lcl":
                 container_number = f"LCL-{quote.pk:05d}"
 
             with transaction.atomic():
-                quote.loading_date = details["loading_date"]
+                quote.loading_date = quote.loading_date or timezone.now()
                 quote.currency = details.get("currency") or quote.currency or "USD"
-                quote.origin = (details.get("origin") or "").strip()
-                quote.destination = (details["destination"] or "").strip()
-                quote.container_number = container_number
-                quote.container_size = details.get("container_size") or ""
                 quote.port_of_loading = (details.get("port_of_loading") or "").strip()
                 quote.port_of_discharge = (
                     details.get("port_of_discharge") or ""
                 ).strip()
-                quote.final_destination = (
-                    details.get("final_destination") or quote.destination
-                ).strip()
-                quote.vessel_voyage = (details.get("vessel_voyage") or "").strip()
-                quote.etd = details.get("etd")
-                quote.eta = details.get("eta")
-                quote.cbm = details.get("measurement") or quote.cbm
+                quote.container_number = container_number
+                if not is_fcl:
+                    quote.container_size = details.get("container_size") or ""
+                quote.cbm = (
+                    details.get("measurement") or quote.cbm
+                    if quote.flow_type == "lcl"
+                    else None
+                )
                 quote.rate_per_cbm = details.get("rate_per_cbm")
-                quote.rate_per_container = details.get("rate_per_container")
+                if not is_fcl:
+                    quote.rate_per_container = details.get("rate_per_container")
                 quote.document_handling_fee = details.get("document_handling_fee") or 0
                 quote.pvoc_fee = details.get("pvoc_fee") or 0
 
                 if quote.cargo_type == "air_cargo":
-                    quote.item_number = (details.get("item_number") or "").strip()
-                    quote.item_description = (
-                        details.get("item_description") or ""
-                    ).strip()
+                    quote.origin = (details.get("origin") or "").strip()
+                    quote.destination = (details.get("destination") or "").strip()
+                    quote.item_number = ""
+                    quote.item_description = ""
                     quote.ctns = details.get("ctns")
                     quote.gross_weight = details.get("gross_weight")
-                    quote.cargo_unit = details.get("cargo_unit") or "ctn"
+                    quote.cargo_unit = "ctn"
                     quote.air_rate_basis = details.get("air_rate_basis") or "package"
                     quote.rate_per_kg = details.get("rate_per_kg")
                     quote.handling_fees = details.get("handling_fees") or 0
-                    quote.airline = (details.get("airline") or "").strip()
+                    quote.airline = ""
+                    quote.awb_number = ""
+                    quote.flight_date = None
+                    quote.estimated_arrival = None
+                    quote.commodity = ""
+                if is_fcl:
+                    quote.container_lines.all().delete()
+                    QuoteContainerLine.objects.bulk_create(
+                        [
+                            QuoteContainerLine(
+                                quote=quote,
+                                quantity=row["quantity"],
+                                container_size=row["container_size"],
+                                rate_per_container=row["rate_per_container"],
+                                pvoc_per_container=row.get("pvoc_per_container") or 0,
+                                container_numbers=row.get("container_numbers") or "",
+                                line_total=Decimal(row["quantity"])
+                                * row["rate_per_container"],
+                            )
+                            for row in container_rows
+                        ]
+                    )
                 quote.save()
 
                 loading_values = {
@@ -3452,7 +3839,7 @@ def quote_convert_to_invoice(request, quote_id):
                     "size_per_carton": "",
                     "payment_terms": quote.payment_terms,
                     "currency": quote.currency or "USD",
-                    "incoterm": (details.get("incoterm") or "").strip(),
+                    "incoterm": quote.incoterm,
                     "port_of_loading": quote.port_of_loading,
                     "port_of_discharge": quote.port_of_discharge,
                     "final_destination": quote.final_destination,
@@ -3484,6 +3871,24 @@ def quote_convert_to_invoice(request, quote_id):
                         setattr(loading, field_name, value)
                     loading.save()
 
+                if is_fcl:
+                    loading.container_lines.all().delete()
+                    LoadingContainerLine.objects.bulk_create(
+                        [
+                            LoadingContainerLine(
+                                loading=loading,
+                                quantity=row["quantity"],
+                                container_size=row["container_size"],
+                                rate_per_container=row["rate_per_container"],
+                                pvoc_per_container=row.get("pvoc_per_container") or 0,
+                                container_numbers=row.get("container_numbers") or "",
+                                line_total=Decimal(row["quantity"])
+                                * row["rate_per_container"],
+                            )
+                            for row in container_rows
+                        ]
+                    )
+
                 payment = Payment.objects.create(
                     loading=loading,
                     rate_per_cbm=quote.rate_per_cbm,
@@ -3510,12 +3915,39 @@ def quote_convert_to_invoice(request, quote_id):
             messages.success(request, "Quotation converted to invoice successfully")
             return redirect("payment_detail", pk=payment.pk)
     else:
-        form = QuoteInvoiceConversionForm(quote=quote)
+        form = QuoteInvoiceConversionForm(quote=quote, uses_container_lines=True)
+        initial_rows = list(
+            quote.container_lines.values(
+                "quantity",
+                "container_size",
+                "rate_per_container",
+                "pvoc_per_container",
+                "container_numbers",
+            )
+        )
+        if quote.flow_type == "fcl" and not initial_rows and quote.rate_per_container:
+            initial_rows = [
+                {
+                    "quantity": 1,
+                    "container_size": quote.container_size or "",
+                    "rate_per_container": quote.rate_per_container,
+                    "pvoc_per_container": quote.pvoc_fee or 0,
+                    "container_numbers": quote.container_number or "",
+                }
+            ]
+        container_formset = InvoiceContainerFormSet(
+            initial=initial_rows, prefix="containers"
+        )
 
     return render(
         request,
         "logistics/quotations/convert_to_invoice.html",
-        {"quote": quote, "form": form, "title": "Convert Quotation to Invoice"},
+        {
+            "quote": quote,
+            "form": form,
+            "container_formset": container_formset,
+            "title": "Convert Quotation to Invoice",
+        },
     )
 
 

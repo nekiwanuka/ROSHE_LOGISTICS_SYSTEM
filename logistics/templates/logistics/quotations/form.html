@@ -49,25 +49,20 @@
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-6 mb-3" id="field-origin">
-                        <label class="form-label">Origin</label>
-                        {{ form.origin }}
-                        {% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}
+                <div class="row freight-route-field">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">POL</label>
+                        {{ form.port_of_loading }}
+                        {% if form.port_of_loading.errors %}<div class="text-danger small">{{ form.port_of_loading.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Destination</label>
-                        {{ form.destination }}
-                        {% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}
+                        {{ form.port_of_discharge }}
+                        {% if form.port_of_discharge.errors %}<div class="text-danger small">{{ form.port_of_discharge.errors }}</div>{% endif %}
                     </div>
                 </div>
 
                 <div class="row">
-                    <div class="col-md-4 mb-3" id="field-loading-date">
-                        <label class="form-label">Expected Loading Date</label>
-                        {{ form.loading_date }}
-                        {% if form.loading_date.errors %}<div class="text-danger small">{{ form.loading_date.errors }}</div>{% endif %}
-                    </div>
                     <div class="col-md-4 mb-3" id="field-cbm">
                         <label class="form-label">Client CBM (LCL only)</label>
                         {{ form.cbm }}
@@ -83,15 +78,40 @@
                         {% if form.rate_per_cbm.errors %}<div class="text-danger small">{{ form.rate_per_cbm.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-4 mb-3" id="field-rate-container">
-                        <label class="form-label">Cost per Container (FCL)</label>
-                        {{ form.rate_per_container }}
-                        {% if form.rate_per_container.errors %}<div class="text-danger small">{{ form.rate_per_container.errors }}</div>{% endif %}
+                        <span class="text-muted">Add each FCL container type and rate below.</span>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Document & Handling Fee</label>
                         {{ form.document_handling_fee }}
                         {% if form.document_handling_fee.errors %}<div class="text-danger small">{{ form.document_handling_fee.errors }}</div>{% endif %}
                     </div>
+                </div>
+
+                <div id="fcl-container-lines" class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-semibold mb-0">FCL Containers</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-container-row"><i class="bi bi-plus-lg"></i> Add Container</button>
+                    </div>
+                    {{ container_formset.management_form }}
+                    {% if container_formset.non_form_errors %}<div class="alert alert-warning py-2">{{ container_formset.non_form_errors }}</div>{% endif %}
+                    <div id="container-rows">
+                        {% for container_form in container_formset %}
+                        <div class="container-row border rounded p-3 mb-2 {% if container_form.DELETE.value %}d-none{% endif %}">
+                            {{ container_form.id }}
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-1"><label class="form-label">Item No.</label>{{ container_form.quantity }}<input class="form-control" value="{{ forloop.counter }}" readonly></div>
+                                <div class="col-md-2"><label class="form-label">Container No *</label>{{ container_form.container_numbers }}{{ container_form.container_numbers.errors }}</div>
+                                <div class="col-md-2"><label class="form-label">Container Type</label>{{ container_form.container_size }}{{ container_form.container_size.errors }}</div>
+                                <div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_form.rate_per_container }}{{ container_form.rate_per_container.errors }}</div>
+                                <div class="col-md-2"><label class="form-label">PVOC</label>{{ container_form.pvoc_per_container }}{{ container_form.pvoc_per_container.errors }}</div>
+                                <div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div>
+                                <div class="col-md-1 text-end">{{ container_form.DELETE.as_hidden }}<button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <template id="empty-container-row"><div class="container-row border rounded p-3 mb-2"><div class="row g-2 align-items-end"><div class="col-md-1"><label class="form-label">Item No.</label>{{ container_formset.empty_form.quantity }}<input class="form-control" value="Auto" readonly></div><div class="col-md-2"><label class="form-label">Container No *</label>{{ container_formset.empty_form.container_numbers }}</div><div class="col-md-2"><label class="form-label">Container Type</label>{{ container_formset.empty_form.container_size }}</div><div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_formset.empty_form.rate_per_container }}</div><div class="col-md-2"><label class="form-label">PVOC</label>{{ container_formset.empty_form.pvoc_per_container }}</div><div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div><div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div></div></div></template>
+                    <div class="form-text">Use Add Container for each additional full container.</div>
                 </div>
 
                 <div class="row">
@@ -109,11 +129,6 @@
                         {% if form.gross_weight.errors %}<div class="text-danger small">{{ form.gross_weight.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-4 mb-3 air-cargo-meta-field">
-                        <label class="form-label">Package Type</label>
-                        {{ form.cargo_unit }}
-                        {% if form.cargo_unit.errors %}<div class="text-danger small">{{ form.cargo_unit.errors }}</div>{% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3 air-cargo-meta-field">
                         <label class="form-label">Rate Basis</label>
                         {{ form.air_rate_basis }}
                         {% if form.air_rate_basis.errors %}<div class="text-danger small">{{ form.air_rate_basis.errors }}</div>{% endif %}
@@ -122,9 +137,14 @@
 
                 <div class="row" id="air-cargo-fields">
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Item Number</label>
-                        {{ form.item_number }}
-                        {% if form.item_number.errors %}<div class="text-danger small">{{ form.item_number.errors }}</div>{% endif %}
+                        <label class="form-label">Origin</label>
+                        {{ form.origin }}
+                        {% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Destination</label>
+                        {{ form.destination }}
+                        {% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Package Count</label>
@@ -141,15 +161,6 @@
                         {{ form.handling_fees }}
                         {% if form.handling_fees.errors %}<div class="text-danger small">{{ form.handling_fees.errors }}</div>{% endif %}
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Airline</label>
-                        {{ form.airline }}
-                        {% if form.airline.errors %}<div class="text-danger small">{{ form.airline.errors }}</div>{% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3"><label class="form-label">AWB No.</label>{{ form.awb_number }}</div>
-                    <div class="col-md-4 mb-3"><label class="form-label">Flight Date</label>{{ form.flight_date }}</div>
-                    <div class="col-md-4 mb-3"><label class="form-label">Estimated Arrival</label>{{ form.estimated_arrival }}</div>
-                    <div class="col-md-4 mb-3"><label class="form-label">Commodity</label>{{ form.commodity }}</div>
                 </div>
 
                 <div class="row">
@@ -166,7 +177,7 @@
                     {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-3 freight-route-field">
                     <label class="form-label">Item Description (optional)</label>
                     {{ form.item_description }}
                     {% if form.item_description.errors %}<div class="text-danger small">{{ form.item_description.errors }}</div>{% endif %}
@@ -199,18 +210,19 @@
             var cbm = document.getElementById('field-cbm');
             var rateCbm = document.getElementById('field-rate-cbm');
             var rateContainer = document.getElementById('field-rate-container');
-            var origin = document.getElementById('field-origin');
+            var containerLines = document.getElementById('fcl-container-lines');
             var freightPricingRules = document.getElementById('freight-pricing-rules');
             var airCargoFields = document.getElementById('air-cargo-fields');
             var airCargoMetaFields = document.querySelectorAll('.air-cargo-meta-field');
+            var freightRouteFields = document.querySelectorAll('.freight-route-field');
             var documentHandling = document.querySelector('input[name="document_handling_fee"]');
             var documentHandlingWrapper = documentHandling ? documentHandling.closest('.col-md-4') : null;
 
             if (flowType) flowType.style.display = isAirCargo ? 'none' : '';
-            if (origin) origin.style.display = '';
             if (freightPricingRules) freightPricingRules.style.display = isAirCargo ? 'none' : '';
             if (airCargoFields) airCargoFields.style.display = isAirCargo ? '' : 'none';
             airCargoMetaFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
+            freightRouteFields.forEach(function(field) { field.style.display = isAirCargo ? 'none' : ''; });
             if (documentHandlingWrapper) documentHandlingWrapper.style.display = isAirCargo ? 'none' : '';
 
             if (isAirCargo) {
@@ -218,6 +230,7 @@
                 if (cbm) cbm.style.display = 'none';
                 if (rateCbm) rateCbm.style.display = 'none';
                 if (rateContainer) rateContainer.style.display = 'none';
+                if (containerLines) containerLines.style.display = 'none';
                 return;
             }
 
@@ -225,11 +238,27 @@
                 if (cbm) cbm.style.display = '';
                 if (rateCbm) rateCbm.style.display = '';
                 if (rateContainer) rateContainer.style.display = 'none';
+                if (containerLines) containerLines.style.display = 'none';
             } else {
                 if (cbm) cbm.style.display = 'none';
                 if (rateCbm) rateCbm.style.display = 'none';
                 if (rateContainer) rateContainer.style.display = '';
+                if (containerLines) containerLines.style.display = '';
             }
+        }
+
+        function updateContainerAmount(row) {
+            var rateInput = row.querySelector('[name$="-rate_per_container"]');
+            var pvocInput = row.querySelector('[name$="-pvoc_per_container"]');
+            var amountInput = row.querySelector('.container-total');
+            if (!amountInput) return;
+            var rate = parseFloat((rateInput && rateInput.value || '0').replace(/,/g, '')) || 0;
+            var pvoc = parseFloat((pvocInput && pvocInput.value || '0').replace(/,/g, '')) || 0;
+            amountInput.value = (rate + pvoc).toFixed(2);
+        }
+
+        function updateAllContainerAmounts() {
+            document.querySelectorAll('.container-row').forEach(updateContainerAmount);
         }
 
         document.addEventListener('change', function(e) {
@@ -237,8 +266,34 @@
                 toggleQuoteFields();
             }
         });
+        document.addEventListener('input', function(e) {
+            if (e.target && (e.target.name || '').match(/-(rate_per_container|pvoc_per_container)$/)) {
+                updateContainerAmount(e.target.closest('.container-row'));
+            }
+        });
         document.addEventListener('DOMContentLoaded', toggleQuoteFields);
+        document.addEventListener('click', function(event) {
+            if (event.target.closest('#add-container-row')) {
+                var totalInput = document.getElementById('id_containers-TOTAL_FORMS');
+                var index = parseInt(totalInput.value, 10);
+                document.getElementById('container-rows').insertAdjacentHTML('beforeend', document.getElementById('empty-container-row').innerHTML.replace(/__prefix__/g, index));
+                totalInput.value = index + 1;
+                updateContainerAmount(document.getElementById('container-rows').lastElementChild);
+                return;
+            }
+            var removeButton = event.target.closest('.remove-container-row');
+            if (!removeButton) return;
+            var row = removeButton.closest('.container-row');
+            var deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.value = 'on';
+                row.classList.add('d-none');
+            } else {
+                row.remove();
+            }
+        });
         toggleQuoteFields();
+        updateAllContainerAmounts();
     })();
 </script>
 {% endblock %}
