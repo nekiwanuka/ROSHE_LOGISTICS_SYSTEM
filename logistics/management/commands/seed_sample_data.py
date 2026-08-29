@@ -541,6 +541,7 @@ class Command(BaseCommand):
                 payment_date=timezone.now()
                 - timezone.timedelta(days=random.randint(0, 45)),
                 payment_method=random.choice(methods),
+                received_by=created_by.get_full_name() or created_by.username,
                 reference=f"SAMPLE-{random.randint(100000, 999999)}",
                 notes="[SAMPLE_DATA] seeded",
                 verification_status="approved" if i % 3 else "pending",

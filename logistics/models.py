@@ -848,6 +848,7 @@ class PaymentTransaction(models.Model):
     payment_method = models.CharField(
         max_length=20, choices=Payment.PAYMENT_METHOD_CHOICES
     )
+    received_by = models.CharField(max_length=150)
     reference = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     document_version = models.CharField(

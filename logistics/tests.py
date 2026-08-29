@@ -1,11 +1,18 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .forms import QuoteContainerFormSet, QuoteForm, QuoteInvoiceConversionForm
-from .models import Client, CustomUser, Loading, Payment, Quote
+from .forms import (
+    PaymentTransactionForm,
+    QuoteContainerFormSet,
+    QuoteForm,
+    QuoteInvoiceConversionForm,
+)
+from .models import Client, CustomUser, Loading, Payment, PaymentTransaction, Quote
+from .payment_stamp import PaymentVerificationStamp
 
 
 class MixedFCLDocumentTests(TestCase):
@@ -248,6 +255,149 @@ class MixedFCLDocumentTests(TestCase):
         pdf_response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+
+    def test_paid_invoice_and_receipt_draw_their_respective_stamps(self):
+        loading = Loading.objects.create(
+            client=self.customer,
+            cargo_type="freight_cargo",
+            flow_type="lcl",
+            loading_date=timezone.now(),
+            origin="Mombasa",
+            destination="Kampala",
+            weight=Decimal("1.00"),
+            created_by=self.user,
+        )
+        payment = Payment.objects.create(
+            loading=loading,
+            rate_per_cbm=Decimal("100.00"),
+            amount_charged=Decimal("100.00"),
+            amount_paid=0,
+            balance=Decimal("100.00"),
+            created_by=self.user,
+        )
+
+        with patch("logistics.views._draw_invoice_paid_stamp") as draw_invoice_stamp:
+            response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+            self.assertEqual(response.status_code, 200)
+            draw_invoice_stamp.assert_not_called()
+
+        first_transaction = PaymentTransaction.objects.create(
+            payment=payment,
+            amount=Decimal("40.00"),
+            payment_method="cash",
+            received_by="Amina N.",
+            reference="BANK-REF-040",
+            verification_status="approved",
+            created_by=self.user,
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.balance, Decimal("60.00"))
+
+        with patch(
+            "logistics.views.PaymentVerificationStamp",
+            wraps=PaymentVerificationStamp,
+        ) as receipt_stamp:
+            response = self.client.get(
+                reverse("payment_receipt", args=[first_transaction.pk])
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(receipt_stamp.call_args.kwargs["fully_paid"])
+            self.assertEqual(
+                receipt_stamp.call_args.kwargs["receipt_number"],
+                first_transaction.receipt_number,
+            )
+            self.assertEqual(
+                receipt_stamp.call_args.kwargs["invoice_number"],
+                payment.invoice_number,
+            )
+            first_rotation = receipt_stamp.call_args.kwargs["rotation_degrees"]
+            self.assertGreaterEqual(first_rotation, -4.5)
+            self.assertLessEqual(first_rotation, 4.5)
+
+        with patch(
+            "logistics.views.PaymentVerificationStamp",
+            wraps=PaymentVerificationStamp,
+        ) as receipt_stamp:
+            self.client.get(reverse("payment_receipt", args=[first_transaction.pk]))
+            self.assertEqual(
+                receipt_stamp.call_args.kwargs["rotation_degrees"],
+                first_rotation,
+            )
+
+        with patch("logistics.views._draw_invoice_paid_stamp") as draw_invoice_stamp:
+            response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+            self.assertEqual(response.status_code, 200)
+            draw_invoice_stamp.assert_called()
+            self.assertEqual(draw_invoice_stamp.call_args.args[2].pk, payment.pk)
+            self.assertEqual(
+                [item.pk for item in draw_invoice_stamp.call_args.args[3]],
+                [first_transaction.pk],
+            )
+
+        second_transaction = PaymentTransaction.objects.create(
+            payment=payment,
+            amount=Decimal("70.00"),
+            payment_method="cash",
+            received_by="Amina N.",
+            reference="BANK-REF-070",
+            verification_status="approved",
+            created_by=self.user,
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.amount_paid, Decimal("110.00"))
+        self.assertEqual(payment.balance, Decimal("-10.00"))
+
+        with patch("logistics.views._draw_invoice_paid_stamp") as draw_invoice_stamp:
+            response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+            self.assertEqual(response.status_code, 200)
+            draw_invoice_stamp.assert_called()
+            self.assertEqual(
+                [item.pk for item in draw_invoice_stamp.call_args.args[3]],
+                [first_transaction.pk, second_transaction.pk],
+            )
+
+        with patch(
+            "logistics.views.PaymentVerificationStamp",
+            wraps=PaymentVerificationStamp,
+        ) as receipt_stamp:
+            response = self.client.get(
+                reverse("payment_receipt", args=[second_transaction.pk])
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(receipt_stamp.call_args.kwargs["fully_paid"])
+            self.assertEqual(
+                receipt_stamp.call_args.kwargs["receipt_number"],
+                second_transaction.receipt_number,
+            )
+            second_rotation = receipt_stamp.call_args.kwargs["rotation_degrees"]
+            self.assertGreaterEqual(second_rotation, -4.5)
+            self.assertLessEqual(second_rotation, 4.5)
+            self.assertNotEqual(second_rotation, first_rotation)
+
+        pdf_response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+        self.assertEqual(pdf_response.status_code, 200)
+        self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+
+        receipt_response = self.client.get(
+            reverse("payment_receipt", args=[second_transaction.pk])
+        )
+        self.assertEqual(receipt_response.status_code, 200)
+        self.assertEqual(receipt_response["Content-Type"], "application/pdf")
+
+    def test_payment_receiver_is_required(self):
+        form = PaymentTransactionForm(
+            data={
+                "amount": "100.00",
+                "payment_date": "2026-08-28T10:30",
+                "payment_method": "cash",
+                "received_by": "",
+                "reference": "CASH-100",
+                "notes": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("received_by", form.errors)
 
     def test_quote_create_saves_mixed_fcl_rows_and_total(self):
         data = {

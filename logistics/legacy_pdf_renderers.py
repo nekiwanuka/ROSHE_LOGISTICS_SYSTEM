@@ -453,7 +453,12 @@ def payment_invoice(request, pk):
     ]
 
     # Header + branded footer on all pages
-    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    doc.build(
+        story,
+        onFirstPage=draw_page,
+        onLaterPages=draw_page,
+        canvasmaker=_paid_invoice_canvasmaker(payment, doc),
+    )
 
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type="application/pdf")
@@ -693,7 +698,12 @@ def payment_receipt(request, transaction_id):
         *audit,
     ]
 
-    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    doc.build(
+        story,
+        onFirstPage=draw_page,
+        onLaterPages=draw_page,
+        canvasmaker=_paid_receipt_canvasmaker(payment, transaction, doc),
+    )
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type="application/pdf")
     disposition = "inline" if preview else "attachment"

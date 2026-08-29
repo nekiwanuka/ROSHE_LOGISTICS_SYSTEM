@@ -34,7 +34,7 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
+from reportlab.lib.units import inch, mm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -71,6 +71,7 @@ from .models import (
 )
 
 from .permissions import ROLE_DEFAULTS, get_app_permissions, has_app_permission
+from .payment_stamp import PaymentVerificationStamp, draw_payment_verification_stamp
 from .whatsapp_api import send_whatsapp_document
 
 logger = logging.getLogger(__name__)
@@ -305,6 +306,125 @@ def _draw_brand_footer(canvas_obj, doc, primary, accent):
     canvas_obj.setFont("Helvetica", 8)
     canvas_obj.drawRightString(right, y0 + 7, "www.roshegroup.com")
     canvas_obj.restoreState()
+
+
+def _approved_payment_transactions(payment):
+    return list(
+        payment.transactions.filter(
+            verification_status="approved",
+            is_voided=False,
+        ).order_by("payment_date", "id")
+    )
+
+
+def _draw_paid_stamp_logo(canvas_obj, *, left, bottom, ink):
+    logo_path = finders.find("images/roshe_logo.svg")
+    if logo_path:
+        try:
+            from svglib.svglib import svg2rlg
+            from reportlab.graphics import renderPDF
+
+            drawing = svg2rlg(logo_path)
+            if drawing and drawing.height:
+
+                def apply_ink(node):
+                    if getattr(node, "fillColor", None) is not None:
+                        node.fillColor = ink
+                    if getattr(node, "strokeColor", None) is not None:
+                        node.strokeColor = ink
+                    for child in getattr(node, "contents", []):
+                        apply_ink(child)
+
+                apply_ink(drawing)
+                scale = 22 / float(drawing.height)
+                drawing.scale(scale, scale)
+                renderPDF.draw(drawing, canvas_obj, left, bottom + 3)
+        except Exception:
+            logger.exception("Failed to render the paid stamp logo from %s", logo_path)
+
+    canvas_obj.setFont("Helvetica-Bold", 11.5)
+    canvas_obj.setFillColor(ink)
+    canvas_obj.drawString(left + 45, bottom + 12, "ROSHE LOGISTICS")
+
+
+def _draw_receipt_paid_stamp(canvas_obj, doc, payment, receipt):
+    width, _ = doc.pagesize
+    paid_up_to = (
+        PaymentTransaction.objects.filter(
+            payment=payment,
+            pk__lte=receipt.pk,
+            verification_status="approved",
+            is_voided=False,
+        ).aggregate(total=Sum("amount"))["total"]
+        or receipt.amount
+    )
+    stamp_width = 36 * mm
+    stamp_height = 36 * mm
+    draw_payment_verification_stamp(
+        canvas_obj,
+        center_x=width - doc.rightMargin - stamp_width / 2,
+        center_y=doc.bottomMargin + stamp_height / 2 + 12,
+        diameter=stamp_height,
+        width=stamp_width,
+        height=stamp_height,
+        receipt_number=receipt.receipt_number,
+        invoice_number=payment.invoice_number,
+        payment_date=timezone.localtime(receipt.payment_date),
+        fully_paid=payment.amount_charged > 0 and paid_up_to >= payment.amount_charged,
+        logo_path=finders.find("images/roshe_logo.svg"),
+    )
+
+
+def _draw_invoice_paid_stamp(canvas_obj, doc, payment, transactions):
+    width, height = doc.pagesize
+    ink = colors.HexColor("#6F2DA8")
+    total_paid = sum((transaction.amount for transaction in transactions), Decimal("0"))
+    fully_paid = payment.amount_charged > 0 and total_paid >= payment.amount_charged
+    status = "PAID" if fully_paid else "PARTIALLY PAID"
+    receipt_numbers = ", ".join(
+        transaction.receipt_number for transaction in transactions
+    )
+
+    canvas_obj.saveState()
+    canvas_obj.setFillColor(ink)
+    if hasattr(canvas_obj, "setFillAlpha"):
+        canvas_obj.setFillAlpha(0.9)
+
+    right = width - doc.rightMargin
+    status_y = height - doc.topMargin + 80
+    canvas_obj.setFont("Helvetica-Bold", 16 if fully_paid else 13)
+    canvas_obj.drawRightString(right, status_y, status)
+    canvas_obj.setFont("Helvetica-Bold", 6.5)
+    canvas_obj.drawRightString(
+        right,
+        status_y - 13,
+        f"RECEIPT{'S' if len(transactions) != 1 else ''}: {receipt_numbers}",
+    )
+    if fully_paid:
+        change = max(total_paid - payment.amount_charged, Decimal("0"))
+        canvas_obj.drawRightString(right, status_y - 24, f"CHANGE: {change:,.2f}")
+    canvas_obj.restoreState()
+
+
+def _paid_invoice_canvasmaker(payment, doc):
+    transactions = _approved_payment_transactions(payment)
+
+    class PaidInvoiceCanvas(canvas.Canvas):
+        def showPage(self):
+            if transactions:
+                _draw_invoice_paid_stamp(self, doc, payment, transactions)
+            super().showPage()
+
+    return PaidInvoiceCanvas
+
+
+def _paid_receipt_canvasmaker(payment, transaction, doc):
+    class PaidReceiptCanvas(canvas.Canvas):
+        def showPage(self):
+            _draw_receipt_paid_stamp(self, doc, payment, transaction)
+            super().showPage()
+
+    return PaidReceiptCanvas
 
 
 def _draw_svg_logo_in_box(
@@ -2620,7 +2740,12 @@ def payment_invoice(request, pk):
     )
 
     # Header + branded footer on all pages
-    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    doc.build(
+        story,
+        onFirstPage=draw_page,
+        onLaterPages=draw_page,
+        canvasmaker=_paid_invoice_canvasmaker(payment, doc),
+    )
 
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type="application/pdf")
@@ -2699,12 +2824,23 @@ def payment_invoice_email(request, pk):
     )
 
 
+def _receipt_stamp_rotation(receipt_number):
+    angle_step = (
+        sum(
+            (index + 1) * ord(character)
+            for index, character in enumerate(str(receipt_number))
+        )
+        % 19
+    )
+    return (angle_step - 9) / 2
+
+
 @login_required
 def payment_receipt(request, transaction_id):
     transaction = get_object_or_404(
         PaymentTransaction.objects.select_related(
             "payment__loading__client", "created_by", "verified_by"
-        ),
+        ).prefetch_related("payment__loading__container_lines"),
         pk=transaction_id,
     )
     preview_param = (request.GET.get("preview") or "").strip().lower()
@@ -2748,6 +2884,15 @@ def payment_receipt(request, transaction_id):
     small.fontSize = 8
     small.leading = 10
 
+    section_label = small.clone("ReceiptSectionLabel")
+    section_label.fontName = "Helvetica-Bold"
+    section_label.fontSize = 7.5
+    section_label.textColor = primary
+
+    detail_text = normal.clone("ReceiptDetailText")
+    detail_text.fontSize = 8.5
+    detail_text.leading = 11
+
     def draw_header(canvas_obj, doc):
         width, height = A4
         left = doc.leftMargin
@@ -2777,23 +2922,18 @@ def payment_receipt(request, transaction_id):
         )
         canvas_obj.drawString(company_x, top - 36, "www.roshegroup.com")
 
-        # Receipt label (yellow background, black text)
-        label_text = f"PAYMENT RECEIPT {transaction.receipt_number}"
-        canvas_obj.setFont("Helvetica-Bold", 11)
-        label_w = canvas_obj.stringWidth(label_text, "Helvetica-Bold", 11) + 16
-        label_h = 20
-        label_x = right - label_w
-        label_y = top - 55
-        canvas_obj.setFillColor(accent)
-        canvas_obj.roundRect(
-            label_x, label_y - label_h + 4, label_w, label_h, 4, fill=1, stroke=0
-        )
-        canvas_obj.setFillColor(colors.black)
-        canvas_obj.drawString(label_x + 8, label_y - 10, label_text)
+        canvas_obj.setFillColor(primary)
+        canvas_obj.setFont("Helvetica-Bold", 15)
+        canvas_obj.drawRightString(right, top - 4, "PAYMENT RECEIPT")
+        canvas_obj.setFont("Helvetica-Bold", 9)
+        canvas_obj.drawRightString(right, top - 19, transaction.receipt_number)
+        canvas_obj.setFont("Helvetica", 7.5)
+        canvas_obj.setFillColor(colors.HexColor("#536475"))
+        canvas_obj.drawRightString(right, top - 32, "OFFICIAL PAYMENT RECORD")
 
         canvas_obj.setStrokeColor(accent)
         canvas_obj.setLineWidth(2)
-        canvas_obj.line(left, top - 82, right, top - 82)
+        canvas_obj.line(left, top - 52, right, top - 52)
 
     def draw_footer(canvas_obj, doc):
         _draw_brand_footer(canvas_obj, doc, primary=primary, accent=accent)
@@ -2813,25 +2953,28 @@ def payment_receipt(request, transaction_id):
     )
 
     received_from = Paragraph(
-        "<b>RECEIVED FROM</b><br/>" f"{client.name}<br/>" f"Phone: {client.phone}",
-        normal,
+        f"<b>{escape(client.name)}</b><br/>Phone: {escape(client.phone or '—')}",
+        detail_text,
     )
 
     is_air_cargo = getattr(loading, "cargo_type", None) == "air_cargo"
     payment_lines = [
-        "<b>PAYMENT DETAILS</b>",
-        f"{'Air Cargo' if is_air_cargo else 'Shipment'} Invoice No: {payment.invoice_number}",
-        f"Payment Date: {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
+        f"Invoice: <b>{payment.invoice_number}</b>",
+        f"Date: {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
         f"Method: {transaction.get_payment_method_display()}",
     ]
-    if not is_air_cargo:
-        payment_lines.insert(2, f"Container Number: {loading.container_number or '—'}")
     if transaction.reference:
         payment_lines.append(f"Reference: {transaction.reference}")
-    payment_details = Paragraph("<br/>".join(payment_lines), normal)
+    payment_details = Paragraph("<br/>".join(payment_lines), detail_text)
 
     top_table = Table(
-        [[received_from, payment_details]],
+        [
+            [
+                Paragraph("RECEIVED FROM", section_label),
+                Paragraph("PAYMENT DETAILS", section_label),
+            ],
+            [received_from, payment_details],
+        ],
         colWidths=[doc.width * 0.55, doc.width * 0.45],
         hAlign="LEFT",
     )
@@ -2840,47 +2983,119 @@ def payment_receipt(request, transaction_id):
             [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
-                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#C9D3DD")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.HexColor("#D9E1E8")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D5DEE6")),
+                ("LINEBEFORE", (1, 0), (1, -1), 0.6, colors.HexColor("#D5DEE6")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, 0), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+                ("TOPPADDING", (0, 1), (-1, 1), 2),
+                ("BOTTOMPADDING", (0, 1), (-1, 1), 9),
             ]
         )
     )
 
     flow = getattr(loading, "flow_type", None)
+    fee = (
+        loading.handling_fees if is_air_cargo else payment.document_handling_fee
+    ) or Decimal("0")
+    invoice_charge_rows = []
     if is_air_cargo:
-        shipment_lines = [
-            "<b>SHIPMENT</b>",
-            f"Origin: {loading.origin or '—'}",
-            f"Destination: {loading.destination or '—'}",
-            f"Package Count: {loading.ctns if loading.ctns is not None else '—'}",
-            f"Gross Weight: {f'{loading.gross_weight:.2f} KGS' if loading.gross_weight is not None else '—'}",
-        ]
-    else:
-        shipment_lines = [
-            "<b>SHIPMENT</b>",
-            f"Route: {loading.origin} to {loading.destination}",
-            f"Loading Date: {loading.loading_date.strftime('%Y-%m-%d') if loading.loading_date else '—'}",
-        ]
-    if not is_air_cargo and flow == "fcl":
-        if loading.container_size:
-            shipment_lines.append(
-                f"Container Size: {loading.get_container_size_display()}"
+        quantity = loading.air_rate_quantity
+        rate = loading.rate_per_kg
+        if quantity is not None and rate is not None:
+            invoice_charge_rows.append(("Air Cargo Freight Charges", quantity * rate))
+    elif flow == "fcl":
+        container_lines = list(loading.container_lines.all())
+        if container_lines:
+            for line in container_lines:
+                container_numbers = [
+                    part.strip()
+                    for part in line.container_numbers.split(",")
+                    if part.strip()
+                ]
+                for index in range(line.quantity):
+                    container_number = (
+                        container_numbers[index]
+                        if index < len(container_numbers)
+                        else "TBC"
+                    )
+                    invoice_charge_rows.append(
+                        (
+                            f"Ocean Freight - {container_number} ({line.get_container_size_display()})",
+                            line.rate_per_container
+                            + (line.pvoc_per_container or Decimal("0")),
+                        )
+                    )
+        elif payment.rate_per_container is not None:
+            invoice_charge_rows.append(
+                (
+                    "Ocean Freight Charges",
+                    payment.rate_per_container + (payment.pvoc_fee or Decimal("0")),
+                )
             )
-    elif not is_air_cargo:
-        cbm_value = f"{loading.weight:.2f} CBM" if loading.weight is not None else "—"
-        shipment_lines.append(f"CBM: {cbm_value}")
-    shipment_details = Paragraph("<br/>".join(shipment_lines), normal)
+    elif loading.weight is not None and payment.rate_per_cbm is not None:
+        invoice_charge_rows.append(
+            ("Ocean Freight Charges", loading.weight * payment.rate_per_cbm)
+        )
+
+    if fee > 0:
+        invoice_charge_rows.append(
+            (
+                "Handling Fees" if is_air_cargo else "Document & Handling Fees",
+                fee,
+            )
+        )
+    if not is_air_cargo and flow != "fcl":
+        pvoc_total = payment.pvoc_total
+        if pvoc_total > 0:
+            invoice_charge_rows.append(("PVOC", pvoc_total))
+    if not invoice_charge_rows:
+        invoice_charge_rows.append(("Invoice Charges", payment.amount_charged))
+
+    charge_table_rows = [
+        ["PAYMENT APPLIES TO", f"INVOICE AMOUNT ({loading.currency or 'USD'})"],
+        *[
+            [Paragraph(escape(description), detail_text), f"{amount:,.2f}"]
+            for description, amount in invoice_charge_rows
+        ],
+        ["Invoice Total", f"{payment.amount_charged:,.2f}"],
+    ]
+    charge_table = Table(
+        charge_table_rows,
+        colWidths=[doc.width * 0.68, doc.width * 0.32],
+        hAlign="LEFT",
+    )
+    charge_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), primary),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D5DEE6")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.6, colors.HexColor("#D5DEE6")),
+                ("LINEABOVE", (0, -1), (-1, -1), 0.6, colors.HexColor("#D5DEE6")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#F8FAFC")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
 
     summary_rows = [
-        ["Summary", f"Amount ({loading.currency or 'USD'})"],
+        ["PAYMENT SUMMARY", f"AMOUNT ({loading.currency or 'USD'})"],
         ["Amount Paid (this receipt)", f"{transaction.amount:,.2f}"],
         ["Paid Up To", f"{paid_up_to:,.2f}"],
-        ["Outstanding After Payment", f"{balance_after:,.2f}"],
+        ["Outstanding After Payment", f"{max(balance_after, Decimal('0')):,.2f}"],
     ]
+    if balance_after < 0:
+        summary_rows.append(["Change", f"{-balance_after:,.2f}"])
     summary_table = Table(
         summary_rows,
         colWidths=[doc.width * 0.65, doc.width * 0.35],
@@ -2889,14 +3104,19 @@ def payment_receipt(request, transaction_id):
     summary_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F2F2F2")),
+                ("BACKGROUND", (0, 0), (-1, 0), primary),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 9),
                 ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-                ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
-                ("INNERGRID", (0, 0), (-1, -1), 0.7, colors.black),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#C9D3DD")),
+                ("LINEBELOW", (0, 1), (-1, -2), 0.4, colors.HexColor("#E1E7EC")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#F8FAFC")),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
@@ -2910,23 +3130,61 @@ def payment_receipt(request, transaction_id):
             f"{transaction.verified_at.strftime('%Y-%m-%d %H:%M') if transaction.verified_at else '—'}"
         )
 
-    audit = [
-        Paragraph("<b>Notes</b>", heading),
+    verification_details = [
+        Paragraph("PAYMENT VERIFIED", section_label),
+        Spacer(1, 6),
         Paragraph(verification_note, small),
+        Spacer(1, 7),
         Paragraph(
-            f"Recorded by {transaction.created_by.username} on {transaction.created_at.strftime('%Y-%m-%d %H:%M')}",
+            f"Payment received by <b>{escape(transaction.received_by or transaction.created_by.get_full_name() or transaction.created_by.username)}</b>",
+            small,
+        ),
+        Spacer(1, 3),
+        Paragraph(
+            f"Receipt issued {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
             small,
         ),
     ]
+    stamp_width = 36 * mm
+    stamp_height = 36 * mm
+    stamp = PaymentVerificationStamp(
+        receipt_number=transaction.receipt_number,
+        invoice_number=payment.invoice_number,
+        payment_date=timezone.localtime(transaction.payment_date),
+        fully_paid=balance_after <= 0,
+        logo_path=finders.find("images/roshe_logo.svg"),
+        diameter=stamp_height,
+        width=stamp_width,
+        height=stamp_height,
+        rotation_degrees=_receipt_stamp_rotation(transaction.receipt_number),
+        horizontal_offset=50,
+    )
+    verification_content = verification_details + [Spacer(1, -24), stamp]
+    verification_section = Table(
+        [[verification_content]],
+        colWidths=[235],
+        hAlign="LEFT",
+    )
+    verification_section.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
 
     story = [
         top_table,
         Spacer(1, 12),
-        shipment_details,
-        Spacer(1, 10),
+        charge_table,
+        Spacer(1, 12),
         summary_table,
-        Spacer(1, 14),
-        *audit,
+        Spacer(1, 7),
+        verification_section,
     ]
 
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)

@@ -987,13 +987,26 @@ class PaymentTransactionForm(forms.ModelForm):
 
     class Meta:
         model = PaymentTransaction
-        fields = ("amount", "payment_date", "payment_method", "reference", "notes")
+        fields = (
+            "amount",
+            "payment_date",
+            "payment_method",
+            "received_by",
+            "reference",
+            "notes",
+        )
         widgets = {
             "amount": _decimal_text_widget(placeholder="Amount Received"),
             "payment_date": forms.DateTimeInput(
                 attrs={"class": "form-control", "type": "datetime-local"}
             ),
             "payment_method": forms.Select(attrs={"class": "form-control"}),
+            "received_by": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Full name of payment receiver",
+                }
+            ),
             "reference": forms.TextInput(
                 attrs={
                     "class": "form-control",
