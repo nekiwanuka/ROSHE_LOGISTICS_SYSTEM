@@ -98,11 +98,11 @@
                         {% for container_form in container_formset %}
                         <div class="container-row border rounded p-3 mb-2 {% if container_form.DELETE.value %}d-none{% endif %}">
                             {{ container_form.id }}
+                            {{ container_form.container_numbers }}
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-1"><label class="form-label">Item No.</label>{{ container_form.quantity }}<input class="form-control" value="{{ forloop.counter }}" readonly></div>
-                                <div class="col-md-2"><label class="form-label">Container No *</label>{{ container_form.container_numbers }}{{ container_form.container_numbers.errors }}</div>
-                                <div class="col-md-2"><label class="form-label">Container Type</label>{{ container_form.container_size }}{{ container_form.container_size.errors }}</div>
-                                <div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_form.rate_per_container }}{{ container_form.rate_per_container.errors }}</div>
+                                <div class="col-md-3"><label class="form-label">Container Type</label>{{ container_form.container_size }}{{ container_form.container_size.errors }}</div>
+                                <div class="col-md-3"><label class="form-label">Rate Per Container</label>{{ container_form.rate_per_container }}{{ container_form.rate_per_container.errors }}</div>
                                 <div class="col-md-2"><label class="form-label">PVOC</label>{{ container_form.pvoc_per_container }}{{ container_form.pvoc_per_container.errors }}</div>
                                 <div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div>
                                 <div class="col-md-1 text-end">{{ container_form.DELETE.as_hidden }}<button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div>
@@ -110,7 +110,7 @@
                         </div>
                         {% endfor %}
                     </div>
-                    <template id="empty-container-row"><div class="container-row border rounded p-3 mb-2"><div class="row g-2 align-items-end"><div class="col-md-1"><label class="form-label">Item No.</label>{{ container_formset.empty_form.quantity }}<input class="form-control" value="Auto" readonly></div><div class="col-md-2"><label class="form-label">Container No *</label>{{ container_formset.empty_form.container_numbers }}</div><div class="col-md-2"><label class="form-label">Container Type</label>{{ container_formset.empty_form.container_size }}</div><div class="col-md-2"><label class="form-label">Rate Per Container</label>{{ container_formset.empty_form.rate_per_container }}</div><div class="col-md-2"><label class="form-label">PVOC</label>{{ container_formset.empty_form.pvoc_per_container }}</div><div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div><div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div></div></div></template>
+                    <template id="empty-container-row"><div class="container-row border rounded p-3 mb-2">{{ container_formset.empty_form.container_numbers }}<div class="row g-2 align-items-end"><div class="col-md-1"><label class="form-label">Item No.</label>{{ container_formset.empty_form.quantity }}<input class="form-control" value="Auto" readonly></div><div class="col-md-3"><label class="form-label">Container Type</label>{{ container_formset.empty_form.container_size }}</div><div class="col-md-3"><label class="form-label">Rate Per Container</label>{{ container_formset.empty_form.rate_per_container }}</div><div class="col-md-2"><label class="form-label">PVOC</label>{{ container_formset.empty_form.pvoc_per_container }}</div><div class="col-md-2"><label class="form-label">Amount</label><input type="text" class="form-control container-total" value="0.00" readonly></div><div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger remove-container-row" title="Remove container"><i class="bi bi-trash"></i></button></div></div></div></template>
                     <div class="form-text">Use Add Container for each additional full container.</div>
                 </div>
 

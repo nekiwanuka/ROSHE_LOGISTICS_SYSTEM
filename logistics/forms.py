@@ -1328,12 +1328,19 @@ class FCLContainerLineForm(forms.ModelForm):
             for number in raw_numbers.replace("\n", ",").split(",")
             if number.strip()
         ]
-        if len(container_numbers) != 1:
+        if self.fields["container_numbers"].required and len(container_numbers) != 1:
             self.add_error(
                 "container_numbers",
                 "Enter one container number. Use Add Container for another container.",
             )
         return cleaned
+
+
+class QuoteFCLContainerLineForm(FCLContainerLineForm):
+    container_numbers = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    class Meta(FCLContainerLineForm.Meta):
+        model = QuoteContainerLine
 
 
 class LoadingContainerLineForm(FCLContainerLineForm):
@@ -1368,7 +1375,7 @@ class BaseInlineFCLContainerFormSet(
 QuoteContainerFormSet = inlineformset_factory(
     Quote,
     QuoteContainerLine,
-    form=FCLContainerLineForm,
+    form=QuoteFCLContainerLineForm,
     formset=BaseInlineFCLContainerFormSet,
     extra=1,
     can_delete=True,

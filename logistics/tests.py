@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import (
+    InvoiceContainerFormSet,
     PaymentTransactionForm,
     QuoteContainerFormSet,
     QuoteForm,
@@ -99,14 +100,20 @@ class MixedFCLDocumentTests(TestCase):
         self.assertIsNone(quote.flight_date)
         self.assertIsNone(quote.estimated_arrival)
 
-    def test_fcl_row_uses_simple_container_input_and_pvoc_field(self):
-        formset = QuoteContainerFormSet(prefix="containers")
-        form = formset.empty_form
+    def test_fcl_quote_row_hides_optional_container_number(self):
+        form = QuoteContainerFormSet(prefix="containers").empty_form
 
-        self.assertEqual(form.fields["container_numbers"].widget.input_type, "text")
+        self.assertEqual(form.fields["container_numbers"].widget.input_type, "hidden")
+        self.assertFalse(form.fields["container_numbers"].required)
         self.assertIn("pvoc_per_container", form.fields)
         self.assertEqual(form.fields["quantity"].max_value, 1)
         self.assertTrue(form.fields["quantity"].widget.is_hidden)
+
+    def test_fcl_conversion_row_requires_container_number(self):
+        form = InvoiceContainerFormSet(prefix="containers").empty_form
+
+        self.assertEqual(form.fields["container_numbers"].widget.input_type, "text")
+        self.assertTrue(form.fields["container_numbers"].required)
 
     def test_invoice_conversion_excludes_route_fields_and_fcl_cbm(self):
         quote = Quote(cargo_type="freight_cargo", flow_type="fcl")
@@ -429,19 +436,27 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
 
-    def test_quote_create_rejects_missing_container_number(self):
+    def test_quote_create_accepts_missing_container_numbers(self):
         container_data = self._container_management_data()
-        container_data["containers-0-container_numbers"] = ""
-        formset = QuoteContainerFormSet(
-            data=container_data,
-            instance=Quote(client=self.customer, created_by=self.user),
-            prefix="containers",
-        )
+        for index in range(3):
+            container_data[f"containers-{index}-container_numbers"] = ""
+        data = {
+            "client": str(self.customer.pk),
+            "cargo_type": "freight_cargo",
+            "flow_type": "fcl",
+            "port_of_loading": "Mombasa",
+            "port_of_discharge": "Kampala",
+            "currency": "USD",
+            "status": "draft",
+            **container_data,
+        }
 
-        self.assertFalse(formset.is_valid())
-        self.assertIn(
-            "This field is required.", formset.forms[0].errors["container_numbers"]
-        )
+        response = self.client.post(reverse("quote_create"), data)
+
+        self.assertEqual(response.status_code, 302)
+        quote = Quote.objects.get()
+        self.assertEqual(quote.container_lines.count(), 3)
+        self.assertFalse(quote.container_lines.exclude(container_numbers="").exists())
 
     def test_conversion_copies_mixed_fcl_rows_to_one_invoice(self):
         quote = Quote.objects.create(
