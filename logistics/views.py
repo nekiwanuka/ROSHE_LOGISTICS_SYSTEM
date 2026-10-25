@@ -222,7 +222,7 @@ def _packages_display(obj):
         count = getattr(obj, "ctns", None)
         if count in (None, ""):
             return "—"
-        return f"{count} {obj.get_cargo_unit_display()}".strip()
+        return str(count)
     if getattr(obj, "flow_type", None) == "fcl":
         return ""
     return _display(getattr(obj, "no_of_packages", ""))

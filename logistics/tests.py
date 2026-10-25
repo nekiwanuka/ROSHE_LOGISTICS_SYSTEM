@@ -598,7 +598,7 @@ class MixedFCLDocumentTests(TestCase):
             for call in paragraph.call_args_list
             if "Amount Due (USD)" in call.args[0]
         )
-        self.assertIn("No. Of Packages:</b> 12 CTNs", invoice_metadata)
+        self.assertIn("No. Of Packages:</b> 12", invoice_metadata)
 
     def test_payment_receiver_is_required(self):
         form = PaymentTransactionForm(

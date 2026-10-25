@@ -201,7 +201,7 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.ctns.id_for_label }}" class="form-label" id="ctns-label">No. Of Packages</label>
-                                    <div class="input-group">{{ form.ctns }}<span class="input-group-text">CTNs</span></div>
+                                    {{ form.ctns }}
                                     {% if form.ctns.errors %}<div class="text-danger">{{ form.ctns.errors }}</div>{% endif %}
                                     <p class="field-hint" id="ctns-hint">Number of CTNs, packages, parcels, packs, or sets.</p>
                                 </div>
