@@ -41,6 +41,7 @@
                     <div class="col-md-6"><label class="form-label">Origin</label>{{ form.origin }}{% if form.origin.errors %}<div class="text-danger small">{{ form.origin.errors }}</div>{% endif %}</div>
                     <div class="col-md-6"><label class="form-label">Destination</label>{{ form.destination }}{% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}</div>
                     <div class="col-md-6"><label class="form-label">Package Count</label>{{ form.ctns }}{% if form.ctns.errors %}<div class="text-danger small">{{ form.ctns.errors }}</div>{% endif %}</div>
+                    <div class="col-md-6"><label class="form-label">No. Of Packages</label>{{ form.no_of_packages }}{% if form.no_of_packages.errors %}<div class="text-danger small">{{ form.no_of_packages.errors }}</div>{% endif %}</div>
                     <div class="col-md-6"><label class="form-label">Gross Weight (KGS)</label>{{ form.gross_weight }}{% if form.gross_weight.errors %}<div class="text-danger small">{{ form.gross_weight.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Rate Basis</label>{{ form.air_rate_basis }}{% if form.air_rate_basis.errors %}<div class="text-danger small">{{ form.air_rate_basis.errors }}</div>{% endif %}</div>
                     <div class="col-md-4"><label class="form-label">Rate</label>{{ form.rate_per_kg }}{% if form.rate_per_kg.errors %}<div class="text-danger small">{{ form.rate_per_kg.errors }}</div>{% endif %}</div>
@@ -113,6 +114,11 @@
                         <label class="form-label">CBM</label>
                         {{ form.measurement }}
                         {% if form.measurement.errors %}<div class="text-danger small">{{ form.measurement.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">No. Of Packages</label>
+                        {{ form.no_of_packages }}
+                        {% if form.no_of_packages.errors %}<div class="text-danger small">{{ form.no_of_packages.errors }}</div>{% endif %}
                     </div>
                 </div>{% endif %}
             </div>

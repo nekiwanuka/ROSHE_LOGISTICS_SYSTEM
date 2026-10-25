@@ -157,25 +157,25 @@ def _draw_fitted_text(
     font_size,
     max_width,
     stroke_width=0,
+    font_name="Helvetica-Bold",
 ):
     while (
-        font_size > 5
-        and canvas_obj.stringWidth(text, "Helvetica-Bold", font_size) > max_width
+        font_size > 5 and canvas_obj.stringWidth(text, font_name, font_size) > max_width
     ):
         font_size -= 0.25
     if stroke_width:
         canvas_obj.setLineWidth(stroke_width)
         text_object = canvas_obj.beginText()
         text_object.setTextOrigin(
-            center_x - canvas_obj.stringWidth(text, "Helvetica-Bold", font_size) / 2,
+            center_x - canvas_obj.stringWidth(text, font_name, font_size) / 2,
             baseline_y,
         )
-        text_object.setFont("Helvetica-Bold", font_size)
+        text_object.setFont(font_name, font_size)
         text_object.setTextRenderMode(2)
         text_object.textOut(text)
         canvas_obj.drawText(text_object)
     else:
-        canvas_obj.setFont("Helvetica-Bold", font_size)
+        canvas_obj.setFont(font_name, font_size)
         canvas_obj.drawCentredString(center_x, baseline_y, text)
 
 
@@ -288,20 +288,14 @@ def draw_payment_verification_stamp(
     )
 
     divider_half_width = stamp_size * 0.34
-    divider_gap = stamp_size * 0.018
-    upper_divider_y = center_y + stamp_size * 0.07
-    lower_divider_y = center_y - stamp_size * 0.11
-    canvas_obj.setLineWidth(stamp_size * 0.006)
-    for divider_y in (upper_divider_y, lower_divider_y):
+    divider_positions = (
+        center_y + stamp_size * 0.07,
+        center_y - stamp_size * 0.11,
+    )
+    canvas_obj.setLineWidth(stamp_size * 0.004)
+    for divider_y in divider_positions:
         canvas_obj.line(
             center_x - divider_half_width,
-            divider_y,
-            center_x - divider_gap,
-            divider_y,
-        )
-        canvas_obj.circle(center_x, divider_y, stamp_size * 0.008, fill=1, stroke=0)
-        canvas_obj.line(
-            center_x + divider_gap,
             divider_y,
             center_x + divider_half_width,
             divider_y,
@@ -335,23 +329,25 @@ def draw_payment_verification_stamp(
     canvas_obj.setFillColor(ink)
 
     invoice_y = center_y - stamp_size * 0.19
-    _draw_condensed_text(
+    _draw_fitted_text(
         canvas_obj,
         str(invoice_number),
         center_x,
         invoice_y,
-        font_size=stamp_size * 0.06,
-        max_width=stamp_size * 0.48,
+        font_size=stamp_size * 0.0735,
+        max_width=stamp_size * 0.70,
+        font_name="Helvetica",
     )
 
     date_y = center_y - stamp_size * 0.29
-    _draw_condensed_text(
+    _draw_fitted_text(
         canvas_obj,
-        payment_date.strftime("%Y-%m-%d %H:%M"),
+        payment_date.strftime("%Y-%m-%d"),
         center_x,
         date_y,
-        font_size=stamp_size * 0.06,
-        max_width=stamp_size * 0.58,
+        font_size=stamp_size * 0.0735,
+        max_width=stamp_size * 0.72,
+        font_name="Helvetica",
     )
     _draw_fitted_text(
         canvas_obj,

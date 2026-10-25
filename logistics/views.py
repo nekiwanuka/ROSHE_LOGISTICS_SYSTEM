@@ -2277,6 +2277,7 @@ def payment_invoice(request, pk):
                     else "—"
                 ),
             ],
+            ["No. Of Packages", _display(loading.no_of_packages), "", ""],
         ]
         cargo_detail_spans = [("SPAN", (0, 0), (-1, 0))]
         cargo_detail_col_widths = [
@@ -2298,8 +2299,12 @@ def payment_invoice(request, pk):
             [
                 "Cargo Type",
                 _display(loading.commodity),
-                "Total Containers",
-                loading.fcl_container_count or (1 if flow == "fcl" else "—"),
+                "No. Of Packages" if flow == "lcl" else "Total Containers",
+                (
+                    _display(loading.no_of_packages)
+                    if flow == "lcl"
+                    else loading.fcl_container_count or 1
+                ),
             ],
         ]
         cargo_detail_spans = [
@@ -2690,7 +2695,15 @@ def payment_invoice(request, pk):
         Spacer(1, 6),
         Paragraph("<b>Bank Details</b>", heading),
         Paragraph(
-            "Bank details are available on request. Please contact ROSHE LOGISTICS.",
+            "<b>Equity Bank Shilling Account:</b> 1042202034704",
+            small,
+        ),
+        Paragraph(
+            "<b>Equity Bank Dollar Account:</b> 1042202234713",
+            small,
+        ),
+        Paragraph(
+            "<b>Account Name:</b> Roshe Group Limited",
             small,
         ),
     ]
@@ -2824,17 +2837,6 @@ def payment_invoice_email(request, pk):
     )
 
 
-def _receipt_stamp_rotation(receipt_number):
-    angle_step = (
-        sum(
-            (index + 1) * ord(character)
-            for index, character in enumerate(str(receipt_number))
-        )
-        % 19
-    )
-    return (angle_step - 9) / 2
-
-
 @login_required
 def payment_receipt(request, transaction_id):
     transaction = get_object_or_404(
@@ -2963,6 +2965,10 @@ def payment_receipt(request, transaction_id):
         f"Date: {transaction.payment_date.strftime('%Y-%m-%d %H:%M')}",
         f"Method: {transaction.get_payment_method_display()}",
     ]
+    if is_air_cargo or getattr(loading, "flow_type", None) == "lcl":
+        payment_lines.append(
+            f"No. Of Packages: <b>{escape(loading.no_of_packages or '—')}</b>"
+        )
     if transaction.reference:
         payment_lines.append(f"Reference: {transaction.reference}")
     payment_details = Paragraph("<br/>".join(payment_lines), detail_text)
@@ -3156,7 +3162,7 @@ def payment_receipt(request, transaction_id):
         diameter=stamp_height,
         width=stamp_width,
         height=stamp_height,
-        rotation_degrees=_receipt_stamp_rotation(transaction.receipt_number),
+        rotation_degrees=1.5,
         horizontal_offset=50,
     )
     verification_content = verification_details + [Spacer(1, -24), stamp]
@@ -3595,6 +3601,7 @@ def quote_pdf(request, quote_id):
                     else "—"
                 ),
             ],
+            ["No. Of Packages", _display(quote.no_of_packages), "", ""],
         ]
     if quote.cargo_type == "air_cargo":
         shipment_table = Table(
@@ -3629,15 +3636,20 @@ def quote_pdf(request, quote_id):
         freight_heading = (
             "FCL FREIGHT DETAILS" if quote.flow_type == "fcl" else "SHIPMENT DETAILS"
         )
-        shipment_table = Table(
+        shipment_rows = [
+            [freight_heading, ""],
+            ["POL", "Destination"],
             [
-                [freight_heading, ""],
-                ["POL", "Destination"],
-                [
-                    _display(quote.port_of_loading),
-                    _display(quote.port_of_discharge),
-                ],
+                _display(quote.port_of_loading),
+                _display(quote.port_of_discharge),
             ],
+        ] + (
+            [["No. Of Packages", _display(quote.no_of_packages)]]
+            if quote.flow_type == "lcl"
+            else []
+        )
+        shipment_table = Table(
+            shipment_rows,
             colWidths=[doc.width * 0.5, doc.width * 0.5],
             hAlign="LEFT",
             cornerRadii=(3, 3, 3, 3),
@@ -4028,6 +4040,11 @@ def quote_convert_to_invoice(request, quote_id):
                 quote.port_of_discharge = (
                     details.get("port_of_discharge") or ""
                 ).strip()
+                quote.no_of_packages = (
+                    (details.get("no_of_packages") or "").strip()
+                    if quote.cargo_type == "air_cargo" or quote.flow_type == "lcl"
+                    else ""
+                )
                 quote.container_number = container_number
                 if not is_fcl:
                     quote.container_size = details.get("container_size") or ""
@@ -4105,7 +4122,11 @@ def quote_convert_to_invoice(request, quote_id):
                     "etd": quote.etd,
                     "eta": quote.eta,
                     "seal_number": "",
-                    "no_of_packages": "",
+                    "no_of_packages": (
+                        quote.no_of_packages
+                        if quote.cargo_type == "air_cargo" or quote.flow_type == "lcl"
+                        else ""
+                    ),
                     "measurement": quote.cbm,
                     "awb_number": quote.awb_number,
                     "flight_date": quote.flight_date,
@@ -4705,6 +4726,7 @@ def export_shipments_csv(request):
             "Item Number",
             "Item Description",
             "Package Count",
+            "No. Of Packages",
             "Gross Weight (KGS)",
             "Package Type",
             "Rate Basis",
@@ -4731,6 +4753,11 @@ def export_shipments_csv(request):
                 loading.item_number or "",
                 loading.item_description or "",
                 loading.ctns or "",
+                (
+                    loading.no_of_packages
+                    if loading.cargo_type == "air_cargo" or loading.flow_type == "lcl"
+                    else ""
+                ),
                 (
                     _fmt_number(loading.gross_weight, decimals=2)
                     if loading.cargo_type == "air_cargo"
@@ -4791,6 +4818,7 @@ def export_shipments_pdf(request):
         "Item Number",
         "Item Description",
         "Package Count",
+        "No. Of Packages",
         "Gross Weight (KGS)",
         "Package Type",
         "Rate Basis",
@@ -4813,6 +4841,11 @@ def export_shipments_pdf(request):
             loading.item_number or "",
             loading.item_description or "",
             loading.ctns or "",
+            (
+                loading.no_of_packages
+                if loading.cargo_type == "air_cargo" or loading.flow_type == "lcl"
+                else ""
+            ),
             (
                 _fmt_number(loading.gross_weight, decimals=2)
                 if loading.cargo_type == "air_cargo"

@@ -1,19 +1,22 @@
 from decimal import Decimal
+from io import BytesIO
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from reportlab.pdfgen.canvas import Canvas
 
 from .forms import (
     InvoiceContainerFormSet,
+    LoadingForm,
     PaymentTransactionForm,
     QuoteContainerFormSet,
     QuoteForm,
     QuoteInvoiceConversionForm,
 )
 from .models import Client, CustomUser, Loading, Payment, PaymentTransaction, Quote
-from .payment_stamp import PaymentVerificationStamp
+from .payment_stamp import PaymentVerificationStamp, draw_payment_verification_stamp
 
 
 class MixedFCLDocumentTests(TestCase):
@@ -53,6 +56,66 @@ class MixedFCLDocumentTests(TestCase):
             "containers-2-container_numbers": "MSCU003",
         }
 
+    def test_stamp_dividers_are_continuous_and_symmetric(self):
+        pdf_canvas = Canvas(BytesIO())
+        with patch.object(pdf_canvas, "line", wraps=pdf_canvas.line) as draw_line:
+            draw_payment_verification_stamp(
+                pdf_canvas,
+                center_x=100,
+                center_y=100,
+                diameter=100,
+                receipt_number="RCT-00001",
+                invoice_number="2610001",
+                payment_date=timezone.now(),
+                fully_paid=True,
+            )
+
+        divider_lines = [call.args for call in draw_line.call_args_list]
+        self.assertEqual(len(divider_lines), 2)
+        self.assertEqual(divider_lines[0][0], divider_lines[1][0])
+        self.assertEqual(divider_lines[0][2], divider_lines[1][2])
+        self.assertTrue(all(line[1] == line[3] for line in divider_lines))
+
+    def test_stamp_numbers_remain_full_size_when_values_fit(self):
+        payment_date = timezone.now()
+        pdf_canvas = Canvas(BytesIO())
+        original_draw_centred = pdf_canvas.drawCentredString
+        rendered_font_sizes = {}
+        rendered_fonts = {}
+
+        def capture_font_size(x, y, text):
+            rendered_font_sizes[text] = pdf_canvas._fontsize
+            rendered_fonts[text] = pdf_canvas._fontname
+            return original_draw_centred(x, y, text)
+
+        with patch.object(
+            pdf_canvas,
+            "drawCentredString",
+            side_effect=capture_font_size,
+        ):
+            draw_payment_verification_stamp(
+                pdf_canvas,
+                center_x=100,
+                center_y=100,
+                diameter=100,
+                receipt_number="RCT-00001",
+                invoice_number="2610001",
+                payment_date=payment_date,
+                fully_paid=True,
+            )
+
+        expected_font_size = 100 * 0.0735
+        self.assertEqual(rendered_font_sizes["2610001"], expected_font_size)
+        self.assertEqual(
+            rendered_font_sizes[payment_date.strftime("%Y-%m-%d")],
+            expected_font_size,
+        )
+        self.assertEqual(rendered_fonts["2610001"], "Helvetica")
+        self.assertEqual(
+            rendered_fonts[payment_date.strftime("%Y-%m-%d")],
+            "Helvetica",
+        )
+
     def test_quote_form_includes_air_route_and_excludes_loading_date(self):
         form = QuoteForm()
 
@@ -77,6 +140,7 @@ class MixedFCLDocumentTests(TestCase):
                 "origin": "Guangzhou",
                 "destination": "Entebbe",
                 "ctns": "12",
+                "no_of_packages": "12 cartons",
                 "gross_weight": "245.50",
                 "air_rate_basis": "package",
                 "rate_per_kg": "18.00",
@@ -91,7 +155,11 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(quote.origin, "Guangzhou")
         self.assertEqual(quote.destination, "Entebbe")
         self.assertEqual(quote.ctns, 12)
+        self.assertEqual(quote.no_of_packages, "12 cartons")
         self.assertEqual(quote.gross_weight, Decimal("245.50"))
+        quote_pdf_response = self.client.get(reverse("quote_pdf", args=[quote.pk]))
+        self.assertEqual(quote_pdf_response.status_code, 200)
+        self.assertEqual(quote_pdf_response["Content-Type"], "application/pdf")
         self.assertEqual(quote.item_number, "")
         self.assertEqual(quote.item_description, "")
         self.assertEqual(quote.airline, "")
@@ -115,6 +183,68 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(form.fields["container_numbers"].widget.input_type, "text")
         self.assertTrue(form.fields["container_numbers"].required)
 
+    @override_settings(
+        STORAGES={
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    )
+    def test_loading_form_keeps_packages_for_lcl_and_air_but_clears_fcl(self):
+        response = self.client.get(reverse("loading_create"))
+        self.assertContains(response, "No. Of Packages")
+
+        common_data = {
+            "client": str(self.customer.pk),
+            "loading_date": "2026-10-25T10:00",
+            "origin": "Mombasa",
+            "destination": "Kampala",
+            "no_of_packages": "12 cartons",
+        }
+        lcl_form = LoadingForm(
+            data={
+                **common_data,
+                "cargo_type": "freight_cargo",
+                "flow_type": "lcl",
+                "container_number": "LCL-TEST-01",
+                "port_of_loading": "Mombasa",
+                "port_of_discharge": "Kampala",
+                "weight": "1.00",
+            }
+        )
+        self.assertTrue(lcl_form.is_valid(), lcl_form.errors)
+        self.assertEqual(lcl_form.cleaned_data["no_of_packages"], "12 cartons")
+
+        air_form = LoadingForm(
+            data={
+                **common_data,
+                "cargo_type": "air_cargo",
+                "flow_type": "lcl",
+                "ctns": "12",
+                "gross_weight": "10.00",
+                "rate_per_kg": "5.00",
+            }
+        )
+        self.assertTrue(air_form.is_valid(), air_form.errors)
+        self.assertEqual(air_form.cleaned_data["no_of_packages"], "12 cartons")
+
+        fcl_form = LoadingForm(
+            data={
+                **common_data,
+                "cargo_type": "freight_cargo",
+                "flow_type": "fcl",
+                "port_of_loading": "Mombasa",
+                "port_of_discharge": "Kampala",
+                "container_size": "20ft",
+            },
+            uses_container_lines=True,
+        )
+        self.assertTrue(fcl_form.is_valid(), fcl_form.errors)
+        self.assertEqual(fcl_form.cleaned_data["no_of_packages"], "")
+
     def test_invoice_conversion_excludes_route_fields_and_fcl_cbm(self):
         quote = Quote(cargo_type="freight_cargo", flow_type="fcl")
         form = QuoteInvoiceConversionForm(quote=quote, uses_container_lines=True)
@@ -129,6 +259,7 @@ class MixedFCLDocumentTests(TestCase):
             "eta",
             "measurement",
             "incoterm",
+            "no_of_packages",
         ):
             self.assertNotIn(field_name, form.fields)
         self.assertEqual(form.fields["port_of_loading"].label, "POL")
@@ -143,6 +274,7 @@ class MixedFCLDocumentTests(TestCase):
         form = QuoteInvoiceConversionForm(quote=quote)
 
         self.assertIn("measurement", form.fields)
+        self.assertIn("no_of_packages", form.fields)
         self.assertNotIn("container_number", form.fields)
         self.assertNotIn("container_size", form.fields)
 
@@ -154,6 +286,7 @@ class MixedFCLDocumentTests(TestCase):
         self.assertIn("origin", form.fields)
         self.assertIn("destination", form.fields)
         self.assertIn("ctns", form.fields)
+        self.assertIn("no_of_packages", form.fields)
         self.assertIn("gross_weight", form.fields)
         self.assertNotIn("item_number", form.fields)
         self.assertNotIn("item_description", form.fields)
@@ -221,6 +354,7 @@ class MixedFCLDocumentTests(TestCase):
                 "origin": "Guangzhou",
                 "destination": "Entebbe",
                 "ctns": "12",
+                "no_of_packages": "12 cartons",
                 "gross_weight": "245.50",
                 "air_rate_basis": "package",
                 "rate_per_kg": "18.00",
@@ -235,10 +369,12 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(quote.origin, "Guangzhou")
         self.assertEqual(quote.destination, "Entebbe")
         self.assertEqual(quote.ctns, 12)
+        self.assertEqual(quote.no_of_packages, "12 cartons")
         self.assertEqual(quote.gross_weight, Decimal("245.50"))
         self.assertEqual(loading.origin, "Guangzhou")
         self.assertEqual(loading.destination, "Entebbe")
         self.assertEqual(loading.ctns, 12)
+        self.assertEqual(loading.no_of_packages, "12 cartons")
         self.assertEqual(loading.gross_weight, Decimal("245.50"))
         for value in (
             quote.item_number,
@@ -318,8 +454,7 @@ class MixedFCLDocumentTests(TestCase):
                 payment.invoice_number,
             )
             first_rotation = receipt_stamp.call_args.kwargs["rotation_degrees"]
-            self.assertGreaterEqual(first_rotation, -4.5)
-            self.assertLessEqual(first_rotation, 4.5)
+            self.assertEqual(first_rotation, 1.5)
 
         with patch(
             "logistics.views.PaymentVerificationStamp",
@@ -377,9 +512,8 @@ class MixedFCLDocumentTests(TestCase):
                 second_transaction.receipt_number,
             )
             second_rotation = receipt_stamp.call_args.kwargs["rotation_degrees"]
-            self.assertGreaterEqual(second_rotation, -4.5)
-            self.assertLessEqual(second_rotation, 4.5)
-            self.assertNotEqual(second_rotation, first_rotation)
+            self.assertEqual(second_rotation, 1.5)
+            self.assertEqual(second_rotation, first_rotation)
 
         pdf_response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
         self.assertEqual(pdf_response.status_code, 200)

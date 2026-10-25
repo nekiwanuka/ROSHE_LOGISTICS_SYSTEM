@@ -520,6 +520,7 @@ class LoadingForm(forms.ModelForm):
             "port_of_loading": "POL",
             "port_of_discharge": "Destination",
             "ctns": "Package Count",
+            "no_of_packages": "No. Of Packages",
             "weight": "CBM",
             "gross_weight": "Gross Weight (KGS)",
             "cargo_unit": "Package Type",
@@ -614,7 +615,7 @@ class LoadingForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "Seal no."}
             ),
             "no_of_packages": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "No. of packages"}
+                attrs={"class": "form-control", "placeholder": "No. Of Packages"}
             ),
             "measurement": _decimal_text_widget(placeholder="Measurement / CBM"),
             "awb_number": forms.TextInput(
@@ -757,7 +758,6 @@ class LoadingForm(forms.ModelForm):
             cleaned["airline"] = ""
             cleaned["gross_weight"] = None
             cleaned["seal_number"] = ""
-            cleaned["no_of_packages"] = ""
             self.instance.item_number = ""
             self.instance.rate_per_kg = None
             self.instance.air_rate_basis = "package"
@@ -766,7 +766,6 @@ class LoadingForm(forms.ModelForm):
             self.instance.size_per_carton = ""
             self.instance.gross_weight = None
             self.instance.seal_number = ""
-            self.instance.no_of_packages = ""
             if not (cleaned.get("origin") or "").strip():
                 self.add_error("origin", "Origin is required for Freight Cargo.")
             if not (cleaned.get("port_of_loading") or "").strip():
@@ -784,6 +783,8 @@ class LoadingForm(forms.ModelForm):
         elif flow_type == "fcl":
             # Full container shipments do not capture CBM/tonnage.
             cleaned["weight"] = None
+            cleaned["no_of_packages"] = ""
+            self.instance.no_of_packages = ""
             if not self.uses_container_lines and not container_size:
                 self.add_error(
                     "container_size", "Container size is required for FCL shipments."
@@ -1037,6 +1038,7 @@ class QuoteForm(forms.ModelForm):
             "item_number",
             "item_description",
             "ctns",
+            "no_of_packages",
             "gross_weight",
             "cargo_unit",
             "air_rate_basis",
@@ -1101,6 +1103,9 @@ class QuoteForm(forms.ModelForm):
                     "placeholder": "Package count",
                     "min": "0",
                 }
+            ),
+            "no_of_packages": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "No. Of Packages"}
             ),
             "gross_weight": _decimal_text_widget(placeholder="Gross weight in KGS"),
             "cargo_unit": forms.Select(attrs={"class": "form-select"}),
@@ -1250,6 +1255,7 @@ class QuoteForm(forms.ModelForm):
             cleaned["airline"] = ""
             cleaned["gross_weight"] = None
             cleaned["commodity"] = ""
+            cleaned["no_of_packages"] = ""
             self.instance.item_number = ""
             self.instance.ctns = None
             self.instance.rate_per_kg = None
@@ -1259,6 +1265,7 @@ class QuoteForm(forms.ModelForm):
             self.instance.size_per_carton = ""
             self.instance.gross_weight = None
             self.instance.commodity = ""
+            self.instance.no_of_packages = ""
             self.instance.pvoc_fee = 0
         elif cargo_type == "freight_cargo":
             self.add_error("flow_type", "Flow type is required for freight quotations.")
@@ -1428,6 +1435,13 @@ class QuoteInvoiceConversionForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Package count", "min": "0"}
         ),
     )
+    no_of_packages = forms.CharField(
+        required=False,
+        label="No. Of Packages",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "No. Of Packages"}
+        ),
+    )
     gross_weight = forms.DecimalField(
         required=False,
         max_digits=10,
@@ -1559,6 +1573,7 @@ class QuoteInvoiceConversionForm(forms.Form):
             initial.setdefault("item_number", quote.item_number or "")
             initial.setdefault("item_description", quote.item_description or "")
             initial.setdefault("ctns", quote.ctns)
+            initial.setdefault("no_of_packages", quote.no_of_packages or "")
             initial.setdefault("gross_weight", quote.gross_weight)
             initial.setdefault("origin", quote.origin or "")
             initial.setdefault("destination", quote.destination or "")
@@ -1588,6 +1603,8 @@ class QuoteInvoiceConversionForm(forms.Form):
             self.fields.pop("container_number", None)
             self.fields.pop("container_size", None)
             self.fields.pop("rate_per_container", None)
+        elif getattr(quote, "flow_type", None) == "fcl":
+            self.fields.pop("no_of_packages", None)
 
         if getattr(quote, "cargo_type", None) == "air_cargo":
             self.fields.pop("port_of_loading", None)

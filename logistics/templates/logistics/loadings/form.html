@@ -205,6 +205,11 @@
                                     {% if form.ctns.errors %}<div class="text-danger">{{ form.ctns.errors }}</div>{% endif %}
                                     <p class="field-hint" id="ctns-hint">Number of CTNs, packages, parcels, packs, or sets.</p>
                                 </div>
+                                <div class="col-md-6 lcl-package-field" id="field-no-of-packages" {% if form.instance.cargo_type != 'air_cargo' and form.instance.flow_type == 'fcl' %}style="display: none;"{% endif %}>
+                                    <label for="{{ form.no_of_packages.id_for_label }}" class="form-label">No. Of Packages</label>
+                                    {{ form.no_of_packages }}
+                                    {% if form.no_of_packages.errors %}<div class="text-danger">{{ form.no_of_packages.errors }}</div>{% endif %}
+                                </div>
                                 <div class="col-md-6 air-cargo-field">
                                     <label for="{{ form.gross_weight.id_for_label }}" class="form-label">Gross Weight (KGS)</label>
                                     {{ form.gross_weight }}
@@ -322,6 +327,7 @@
             var originField = document.getElementById('field-origin');
             var airFields = document.querySelectorAll('.air-cargo-field');
             var freightFields = document.querySelectorAll('.freight-cargo-field');
+            var lclPackageFields = document.querySelectorAll('.lcl-package-field');
 
             var weightInput = document.getElementById('id_weight');
             var originInput = document.getElementById('id_origin');
@@ -347,6 +353,9 @@
             if (originField) originField.style.display = '';
             airFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });
             freightFields.forEach(function(field) { field.style.display = isAirCargo ? 'none' : ''; });
+            lclPackageFields.forEach(function(field) {
+                field.style.display = isAirCargo || flow.value === 'lcl' ? '' : 'none';
+            });
             if (createInvoiceOption) createInvoiceOption.style.display = (isAirCargo || isFcl) ? '' : 'none';
             if (!isAirCargo && !isFcl && createInvoiceInput) createInvoiceInput.checked = false;
 

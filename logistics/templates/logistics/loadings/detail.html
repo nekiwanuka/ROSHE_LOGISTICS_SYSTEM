@@ -66,6 +66,10 @@
                             <p>{{ loading.ctns|default:"-" }}</p>
                         </div>
                         <div class="col-md-6">
+                            <h6 class="text-muted">No. Of Packages</h6>
+                            <p>{{ loading.no_of_packages|default:"-" }}</p>
+                        </div>
+                        <div class="col-md-6">
                             <h6 class="text-muted">Gross Weight</h6>
                             <p>{% if loading.gross_weight %}{{ loading.gross_weight }} KGS{% else %}-{% endif %}</p>
                         </div>
@@ -127,6 +131,10 @@
                                     -
                                 {% endif %}
                             </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">No. Of Packages</h6>
+                            <p>{{ loading.no_of_packages|default:"-" }}</p>
                         </div>
                     </div>
                     {% endif %}
