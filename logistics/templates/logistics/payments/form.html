@@ -66,9 +66,8 @@
                                 <div class="col-md-6"><strong>Destination:</strong> <span data-air-detail="destination">-</span></div>
                                 <div class="col-md-6"><strong>Origin:</strong> <span data-air-detail="origin">-</span></div>
                                 <div class="col-md-6"><strong>Airline:</strong> <span data-air-detail="airline">-</span></div>
-                                <div class="col-md-6"><strong>Package Count:</strong> <span data-air-detail="ctns">-</span></div>
+                                <div class="col-md-6"><strong>No. Of Packages:</strong> <span data-air-detail="ctns">-</span></div>
                                 <div class="col-md-6"><strong>Gross Weight:</strong> <span data-air-detail="gross-weight">-</span> KGS</div>
-                                <div class="col-md-6"><strong>Package Type:</strong> <span data-air-detail="cargo-unit">-</span></div>
                                 <div class="col-md-6"><strong>Rate Basis:</strong> <span data-air-detail="air-rate-basis">-</span></div>
                                 <div class="col-md-6"><strong>Rate:</strong> <span data-air-detail="rate-per-kg">-</span></div>
                                 <div class="col-md-6"><strong>Handling Fees:</strong> <span data-air-detail="handling-fees">-</span></div>
@@ -231,9 +230,8 @@
                 setAirDetail('origin', selected.dataset.origin);
                 setAirDetail('destination', selected.dataset.destination);
                 setAirDetail('airline', selected.dataset.airline);
-                setAirDetail('ctns', selected.dataset.ctns);
+                setAirDetail('ctns', selected.dataset.ctns ? selected.dataset.ctns + ' ' + selected.dataset.cargoUnit : '');
                 setAirDetail('gross-weight', selected.dataset.grossWeight);
-                setAirDetail('cargo-unit', selected.dataset.cargoUnit);
                 setAirDetail('air-rate-basis', selected.dataset.airRateBasis);
                 setAirDetail('rate-per-kg', selected.dataset.ratePerKg ? money(selected.dataset.ratePerKg) : '');
                 setAirDetail('handling-fees', selected.dataset.handlingFees ? money(selected.dataset.handlingFees) : '');

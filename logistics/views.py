@@ -217,6 +217,17 @@ def _cargo_unit_label(obj):
         return "KGS"
 
 
+def _packages_display(obj):
+    if getattr(obj, "cargo_type", None) == "air_cargo":
+        count = getattr(obj, "ctns", None)
+        if count in (None, ""):
+            return "—"
+        return f"{count} {obj.get_cargo_unit_display()}".strip()
+    if getattr(obj, "flow_type", None) == "fcl":
+        return ""
+    return _display(getattr(obj, "no_of_packages", ""))
+
+
 def _normalize_whatsapp_phone(raw_value, default_country_code="256"):
     if raw_value is None:
         return ""
@@ -2253,7 +2264,7 @@ def payment_invoice(request, pk):
     if is_air_cargo or loading.flow_type == "lcl":
         invoice_meta_lines.insert(
             4,
-            f"<b>No. Of Packages:</b> {escape(loading.no_of_packages or '—')}",
+            f"<b>No. Of Packages:</b> {escape(_packages_display(loading))}",
         )
     invoice_meta = Paragraph("<br/>".join(invoice_meta_lines), normal)
 
@@ -2273,8 +2284,8 @@ def payment_invoice(request, pk):
                 _display(loading.destination),
             ],
             [
-                "Package Count",
-                _display(loading.ctns),
+                "No. Of Packages",
+                _packages_display(loading),
                 "Gross Weight",
                 (
                     f"{loading.gross_weight:.2f} KGS"
@@ -2282,7 +2293,6 @@ def payment_invoice(request, pk):
                     else "—"
                 ),
             ],
-            ["No. Of Packages", _display(loading.no_of_packages), "", ""],
         ]
         cargo_detail_spans = [("SPAN", (0, 0), (-1, 0))]
         cargo_detail_col_widths = [
@@ -2681,24 +2691,49 @@ def payment_invoice(request, pk):
         )
     )
 
-    bank_details_table = Table(
-        [
-            ["Bank Account", "Account Number"],
-            ["Equity Bank Shilling", "1042202034704"],
-            ["Equity Bank Dollar", "1042202234713"],
-        ],
-        colWidths=[doc.width * 0.58, doc.width * 0.42],
-        hAlign="LEFT",
+    payment_information = Paragraph(
+        "<font color='#003366'><b>UGX Account:</b></font><br/>"
+        "<b>Bank:</b> Equity Bank<br/>"
+        "<b>Account Name:</b> Roshe Group Limited<br/>"
+        "<b>Account Number:</b> 1042202034704<br/><br/>"
+        "<font color='#003366'><b>USD Account:</b></font><br/>"
+        "<b>Bank:</b> Equity Bank<br/>"
+        "<b>Account Name:</b> Roshe Group Limited<br/>"
+        "<b>Account Number:</b> 1042202234713",
+        small,
     )
-    bank_details_table.setStyle(
+    invoice_terms = Paragraph(
+        "<br/>".join(
+            [
+                "&bull; Payment is due by the stated due date.",
+                "&bull; Quote the invoice number when making payment.",
+                "&bull; Services will be delivered according to the agreed project terms.",
+                "&bull; Additional work outside the agreed scope will be quoted separately.",
+                "&bull; Retain this invoice as proof of transaction.",
+            ]
+        ),
+        small,
+    )
+    payment_and_terms_table = Table(
+        [
+            [
+                Paragraph("Payment Information", heading),
+                Paragraph("Notes &amp; Terms", heading),
+            ],
+            [payment_information, invoice_terms],
+        ],
+        colWidths=[doc.width * 0.5, doc.width * 0.5],
+        hAlign="LEFT",
+        cornerRadii=(6, 6, 6, 6),
+    )
+    payment_and_terms_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F2F5F9")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#C9D3DD")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9E1E8")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9E1E8")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#C9D3DD")),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -2706,28 +2741,6 @@ def payment_invoice(request, pk):
             ]
         )
     )
-
-    notes = [
-        Paragraph("<b>Notes / Terms</b>", heading),
-        Paragraph(
-            (
-                "1. Air Cargo charges are payable before release unless otherwise agreed."
-                if is_air_cargo
-                else "1. Freight charges are to be paid when the container arrives at Mombasa port."
-            ),
-            small,
-        ),
-        Paragraph("2. A Surcharge of 5% will be charged on late payment", small),
-        Paragraph(
-            "3. Partial payments are recorded; outstanding balance must be cleared before release.",
-            small,
-        ),
-        Paragraph("4. Thank you for choosing ROSHE LOGISTICS.", small),
-        Spacer(1, 6),
-        Paragraph("<b>Bank Details</b>", heading),
-        bank_details_table,
-        Paragraph("<b>Account Name:</b> Roshe Group Limited", small),
-    ]
 
     story = [info_table, Spacer(1, 8)]
     if is_air_cargo:
@@ -2769,7 +2782,7 @@ def payment_invoice(request, pk):
             Spacer(1, 6),
             totals_table,
             Spacer(1, 10),
-            *notes,
+            payment_and_terms_table,
         ]
     )
 
@@ -2988,7 +3001,7 @@ def payment_receipt(request, transaction_id):
     ]
     if is_air_cargo or getattr(loading, "flow_type", None) == "lcl":
         payment_lines.append(
-            f"No. Of Packages: <b>{escape(loading.no_of_packages or '—')}</b>"
+            f"No. Of Packages: <b>{escape(_packages_display(loading))}</b>"
         )
     if transaction.reference:
         payment_lines.append(f"Reference: {transaction.reference}")
@@ -3613,8 +3626,8 @@ def quote_pdf(request, quote_id):
                 _display(quote.destination),
             ],
             [
-                "Package Count",
-                _display(quote.ctns),
+                "No. Of Packages",
+                _packages_display(quote),
                 "Gross Weight",
                 (
                     f"{quote.gross_weight:.2f} KGS"
@@ -3622,7 +3635,6 @@ def quote_pdf(request, quote_id):
                     else "—"
                 ),
             ],
-            ["No. Of Packages", _display(quote.no_of_packages), "", ""],
         ]
     if quote.cargo_type == "air_cargo":
         shipment_table = Table(
@@ -4746,10 +4758,8 @@ def export_shipments_csv(request):
             "Loading Date",
             "Item Number",
             "Item Description",
-            "Package Count",
             "No. Of Packages",
             "Gross Weight (KGS)",
-            "Package Type",
             "Rate Basis",
             "Rate Unit",
             "Rate",
@@ -4773,21 +4783,11 @@ def export_shipments_csv(request):
                 _fmt_dt(loading.loading_date),
                 loading.item_number or "",
                 loading.item_description or "",
-                loading.ctns or "",
-                (
-                    loading.no_of_packages
-                    if loading.cargo_type == "air_cargo" or loading.flow_type == "lcl"
-                    else ""
-                ),
+                _packages_display(loading),
                 (
                     _fmt_number(loading.gross_weight, decimals=2)
                     if loading.cargo_type == "air_cargo"
                     and loading.gross_weight is not None
-                    else ""
-                ),
-                (
-                    loading.get_cargo_unit_display()
-                    if loading.cargo_type == "air_cargo"
                     else ""
                 ),
                 (
@@ -4838,10 +4838,8 @@ def export_shipments_pdf(request):
         "Loading Date",
         "Item Number",
         "Item Description",
-        "Package Count",
         "No. Of Packages",
         "Gross Weight (KGS)",
-        "Package Type",
         "Rate Basis",
         "Rate Unit",
         "Rate",
@@ -4861,21 +4859,11 @@ def export_shipments_pdf(request):
             _fmt_dt(loading.loading_date),
             loading.item_number or "",
             loading.item_description or "",
-            loading.ctns or "",
-            (
-                loading.no_of_packages
-                if loading.cargo_type == "air_cargo" or loading.flow_type == "lcl"
-                else ""
-            ),
+            _packages_display(loading),
             (
                 _fmt_number(loading.gross_weight, decimals=2)
                 if loading.cargo_type == "air_cargo"
                 and loading.gross_weight is not None
-                else ""
-            ),
-            (
-                loading.get_cargo_unit_display()
-                if loading.cargo_type == "air_cargo"
                 else ""
             ),
             (

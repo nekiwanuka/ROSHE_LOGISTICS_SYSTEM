@@ -155,7 +155,7 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(quote.origin, "Guangzhou")
         self.assertEqual(quote.destination, "Entebbe")
         self.assertEqual(quote.ctns, 12)
-        self.assertEqual(quote.no_of_packages, "12 cartons")
+        self.assertEqual(quote.no_of_packages, "")
         self.assertEqual(quote.gross_weight, Decimal("245.50"))
         quote_pdf_response = self.client.get(reverse("quote_pdf", args=[quote.pk]))
         self.assertEqual(quote_pdf_response.status_code, 200)
@@ -229,7 +229,8 @@ class MixedFCLDocumentTests(TestCase):
             }
         )
         self.assertTrue(air_form.is_valid(), air_form.errors)
-        self.assertEqual(air_form.cleaned_data["no_of_packages"], "12 cartons")
+        self.assertEqual(air_form.cleaned_data["ctns"], 12)
+        self.assertEqual(air_form.cleaned_data["no_of_packages"], "")
 
         fcl_form = LoadingForm(
             data={
@@ -286,7 +287,7 @@ class MixedFCLDocumentTests(TestCase):
         self.assertIn("origin", form.fields)
         self.assertIn("destination", form.fields)
         self.assertIn("ctns", form.fields)
-        self.assertIn("no_of_packages", form.fields)
+        self.assertNotIn("no_of_packages", form.fields)
         self.assertIn("gross_weight", form.fields)
         self.assertNotIn("item_number", form.fields)
         self.assertNotIn("item_description", form.fields)
@@ -369,12 +370,13 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(quote.origin, "Guangzhou")
         self.assertEqual(quote.destination, "Entebbe")
         self.assertEqual(quote.ctns, 12)
-        self.assertEqual(quote.no_of_packages, "12 cartons")
+        self.assertEqual(quote.no_of_packages, "")
         self.assertEqual(quote.gross_weight, Decimal("245.50"))
         self.assertEqual(loading.origin, "Guangzhou")
         self.assertEqual(loading.destination, "Entebbe")
         self.assertEqual(loading.ctns, 12)
-        self.assertEqual(loading.no_of_packages, "12 cartons")
+        self.assertEqual(loading.no_of_packages, "")
+        self.assertEqual(loading.get_cargo_unit_display(), "CTNs")
         self.assertEqual(loading.gross_weight, Decimal("245.50"))
         for value in (
             quote.item_number,
@@ -596,7 +598,7 @@ class MixedFCLDocumentTests(TestCase):
             for call in paragraph.call_args_list
             if "Amount Due (USD)" in call.args[0]
         )
-        self.assertIn("No. Of Packages:</b> 12 cartons", invoice_metadata)
+        self.assertIn("No. Of Packages:</b> 12 CTNs", invoice_metadata)
 
     def test_payment_receiver_is_required(self):
         form = PaymentTransactionForm(

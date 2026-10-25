@@ -339,7 +339,7 @@ class Command(BaseCommand):
                 size_per_carton = random.choice(
                     ["45x35x30 cm", "60x40x40 cm", "Assorted cartons"]
                 )
-                no_of_packages = str(ctns)
+                no_of_packages = ""
                 measurement = None
             elif flow_type == "fcl":
                 container_number = random.choice(container_numbers) + str(i % 10)

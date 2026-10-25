@@ -147,8 +147,8 @@
                         {% if form.destination.errors %}<div class="text-danger small">{{ form.destination.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Package Count</label>
-                        {{ form.ctns }}
+                        <label class="form-label">No. Of Packages</label>
+                        <div class="input-group">{{ form.ctns }}<span class="input-group-text">CTNs</span></div>
                         {% if form.ctns.errors %}<div class="text-danger small">{{ form.ctns.errors }}</div>{% endif %}
                     </div>
                     <div class="col-md-4 mb-3">
@@ -164,7 +164,7 @@
                 </div>
 
                 <div class="row">
-                    <div class="col-md-4 mb-3" id="field-no-of-packages" {% if form.instance.cargo_type != 'air_cargo' and form.instance.flow_type == 'fcl' %}style="display: none;"{% endif %}>
+                    <div class="col-md-4 mb-3" id="field-no-of-packages" {% if form.instance.cargo_type == 'air_cargo' or form.instance.flow_type == 'fcl' %}style="display: none;"{% endif %}>
                         <label class="form-label">No. Of Packages</label>
                         {{ form.no_of_packages }}
                         {% if form.no_of_packages.errors %}<div class="text-danger small">{{ form.no_of_packages.errors }}</div>{% endif %}
@@ -228,7 +228,7 @@
             var documentHandlingWrapper = documentHandling ? documentHandling.closest('.col-md-4') : null;
 
             if (flowType) flowType.style.display = isAirCargo ? 'none' : '';
-            if (packageField) packageField.style.display = isAirCargo || val === 'lcl' ? '' : 'none';
+            if (packageField) packageField.style.display = !isAirCargo && val === 'lcl' ? '' : 'none';
             if (freightPricingRules) freightPricingRules.style.display = isAirCargo ? 'none' : '';
             if (airCargoFields) airCargoFields.style.display = isAirCargo ? '' : 'none';
             airCargoMetaFields.forEach(function(field) { field.style.display = isAirCargo ? '' : 'none'; });

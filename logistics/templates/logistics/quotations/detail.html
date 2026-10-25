@@ -74,8 +74,7 @@
                     <div><strong>Destination:</strong> {{ quote.destination }}</div>
                     {% endif %}
                     {% if quote.cargo_type == 'air_cargo' %}
-                        <div><strong>Package Count:</strong> {{ quote.ctns|default:"—" }}</div>
-                        <div><strong>No. Of Packages:</strong> {{ quote.no_of_packages|default:"—" }}</div>
+                        <div><strong>No. Of Packages:</strong> {{ quote.ctns|default:"—" }} {{ quote.get_cargo_unit_display }}</div>
                         <div><strong>Gross Weight:</strong> {{ quote.gross_weight|default:"—" }} KGS</div>
                         <div><strong>Rate Basis:</strong> {{ quote.get_air_rate_basis_display|default:"—" }}</div>
                     {% elif quote.flow_type == 'lcl' %}

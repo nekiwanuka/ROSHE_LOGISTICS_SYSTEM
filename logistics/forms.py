@@ -519,7 +519,7 @@ class LoadingForm(forms.ModelForm):
             "cargo_type": "Cargo Type",
             "port_of_loading": "POL",
             "port_of_discharge": "Destination",
-            "ctns": "Package Count",
+            "ctns": "No. Of Packages",
             "no_of_packages": "No. Of Packages",
             "weight": "CBM",
             "gross_weight": "Gross Weight (KGS)",
@@ -566,7 +566,7 @@ class LoadingForm(forms.ModelForm):
             "ctns": forms.NumberInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "Package count",
+                    "placeholder": "No. Of Packages",
                     "min": "0",
                 }
             ),
@@ -714,6 +714,7 @@ class LoadingForm(forms.ModelForm):
         if cargo_type == "air_cargo":
             cleaned["flow_type"] = "lcl"
             cleaned["weight"] = None
+            cleaned["no_of_packages"] = ""
             cleaned["item_number"] = ""
             cleaned["item_description"] = ""
             cleaned["cargo_unit"] = "ctn"
@@ -727,6 +728,7 @@ class LoadingForm(forms.ModelForm):
             cleaned["port_of_loading"] = ""
             cleaned["port_of_discharge"] = ""
             self.instance.weight = None
+            self.instance.no_of_packages = ""
             self.instance.container_number = ""
             self.instance.container_size = ""
             self.instance.port_of_loading = ""
@@ -737,7 +739,7 @@ class LoadingForm(forms.ModelForm):
             if not (cleaned.get("destination") or "").strip():
                 self.add_error("destination", "Destination is required for Air Cargo.")
             if ctns is None:
-                self.add_error("ctns", "Package count is required for Air Cargo.")
+                self.add_error("ctns", "No. Of Packages is required for Air Cargo.")
             if gross_weight in (None, ""):
                 self.add_error(
                     "gross_weight", "Gross weight in KGS is required for Air Cargo."
@@ -1100,7 +1102,7 @@ class QuoteForm(forms.ModelForm):
             "ctns": forms.NumberInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "Package count",
+                    "placeholder": "No. Of Packages",
                     "min": "0",
                 }
             ),
@@ -1179,6 +1181,7 @@ class QuoteForm(forms.ModelForm):
             self.add_error("cargo_type", "Cargo type is required.")
         if cargo_type == "air_cargo":
             cleaned["flow_type"] = "lcl"
+            cleaned["no_of_packages"] = ""
             cleaned["item_number"] = ""
             cleaned["item_description"] = ""
             cleaned["cargo_unit"] = "ctn"
@@ -1197,6 +1200,7 @@ class QuoteForm(forms.ModelForm):
             cleaned["document_handling_fee"] = 0
             cleaned["pvoc_fee"] = 0
             self.instance.flow_type = "lcl"
+            self.instance.no_of_packages = ""
             self.instance.container_number = ""
             self.instance.container_size = ""
             self.instance.cbm = None
@@ -1212,7 +1216,7 @@ class QuoteForm(forms.ModelForm):
             if not (cleaned.get("destination") or "").strip():
                 self.add_error("destination", "Destination is required for Air Cargo.")
             if ctns is None:
-                self.add_error("ctns", "Package count is required for Air Cargo.")
+                self.add_error("ctns", "No. Of Packages is required for Air Cargo.")
             if gross_weight is None:
                 self.add_error(
                     "gross_weight", "Gross weight in KGS is required for Air Cargo."
@@ -1429,10 +1433,14 @@ class QuoteInvoiceConversionForm(forms.Form):
     )
     ctns = forms.IntegerField(
         required=False,
-        label="Package Count",
+        label="No. Of Packages",
         min_value=0,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "placeholder": "Package count", "min": "0"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "No. Of Packages",
+                "min": "0",
+            }
         ),
     )
     no_of_packages = forms.CharField(
@@ -1607,6 +1615,7 @@ class QuoteInvoiceConversionForm(forms.Form):
             self.fields.pop("no_of_packages", None)
 
         if getattr(quote, "cargo_type", None) == "air_cargo":
+            self.fields.pop("no_of_packages", None)
             self.fields.pop("port_of_loading", None)
             self.fields.pop("port_of_discharge", None)
             for field_name in [
@@ -1654,7 +1663,7 @@ class QuoteInvoiceConversionForm(forms.Form):
             if not (cleaned.get("destination") or "").strip():
                 self.add_error("destination", "Destination is required for Air Cargo.")
             if cleaned.get("ctns") is None:
-                self.add_error("ctns", "Package count is required for Air Cargo.")
+                self.add_error("ctns", "No. Of Packages is required for Air Cargo.")
             if cleaned.get("gross_weight") is None:
                 self.add_error(
                     "gross_weight", "Gross weight in KGS is required for Air Cargo."
