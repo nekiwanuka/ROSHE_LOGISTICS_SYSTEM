@@ -2250,6 +2250,11 @@ def payment_invoice(request, pk):
         f"<b>Currency:</b> {currency}",
         f"<b>Amount Due ({currency}):</b> {amount_due:,.2f}",
     ]
+    if is_air_cargo or loading.flow_type == "lcl":
+        invoice_meta_lines.insert(
+            4,
+            f"<b>No. Of Packages:</b> {escape(loading.no_of_packages or '—')}",
+        )
     invoice_meta = Paragraph("<br/>".join(invoice_meta_lines), normal)
 
     flow = getattr(loading, "flow_type", None)
@@ -2676,6 +2681,32 @@ def payment_invoice(request, pk):
         )
     )
 
+    bank_details_table = Table(
+        [
+            ["Bank Account", "Account Number"],
+            ["Equity Bank Shilling", "1042202034704"],
+            ["Equity Bank Dollar", "1042202234713"],
+        ],
+        colWidths=[doc.width * 0.58, doc.width * 0.42],
+        hAlign="LEFT",
+    )
+    bank_details_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F4")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#C9D3DD")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9E1E8")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
     notes = [
         Paragraph("<b>Notes / Terms</b>", heading),
         Paragraph(
@@ -2694,18 +2725,8 @@ def payment_invoice(request, pk):
         Paragraph("4. Thank you for choosing ROSHE LOGISTICS.", small),
         Spacer(1, 6),
         Paragraph("<b>Bank Details</b>", heading),
-        Paragraph(
-            "<b>Equity Bank Shilling Account:</b> 1042202034704",
-            small,
-        ),
-        Paragraph(
-            "<b>Equity Bank Dollar Account:</b> 1042202234713",
-            small,
-        ),
-        Paragraph(
-            "<b>Account Name:</b> Roshe Group Limited",
-            small,
-        ),
+        bank_details_table,
+        Paragraph("<b>Account Name:</b> Roshe Group Limited", small),
     ]
 
     story = [info_table, Spacer(1, 8)]

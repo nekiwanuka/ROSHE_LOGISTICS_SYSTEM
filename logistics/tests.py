@@ -525,6 +525,79 @@ class MixedFCLDocumentTests(TestCase):
         self.assertEqual(receipt_response.status_code, 200)
         self.assertEqual(receipt_response["Content-Type"], "application/pdf")
 
+    def test_lcl_invoice_metadata_card_includes_package_count(self):
+        loading = Loading.objects.create(
+            client=self.customer,
+            cargo_type="freight_cargo",
+            flow_type="lcl",
+            loading_date=timezone.now(),
+            origin="Mombasa",
+            destination="Kampala",
+            weight=Decimal("1.00"),
+            no_of_packages="12 cartons",
+            created_by=self.user,
+        )
+        payment = Payment.objects.create(
+            loading=loading,
+            rate_per_cbm=Decimal("100.00"),
+            amount_charged=Decimal("100.00"),
+            amount_paid=0,
+            balance=Decimal("100.00"),
+            created_by=self.user,
+        )
+        from logistics.views import Paragraph as ReportParagraph
+
+        with patch(
+            "logistics.views.Paragraph",
+            wraps=ReportParagraph,
+        ) as paragraph:
+            response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        invoice_metadata = next(
+            call.args[0]
+            for call in paragraph.call_args_list
+            if "Amount Due (USD)" in call.args[0]
+        )
+        self.assertIn("No. Of Packages:</b> 12 cartons", invoice_metadata)
+
+    def test_air_invoice_metadata_card_includes_package_count(self):
+        loading = Loading.objects.create(
+            client=self.customer,
+            cargo_type="air_cargo",
+            flow_type="lcl",
+            loading_date=timezone.now(),
+            origin="Guangzhou",
+            destination="Entebbe",
+            ctns=12,
+            no_of_packages="12 cartons",
+            gross_weight=Decimal("10.00"),
+            rate_per_kg=Decimal("5.00"),
+            created_by=self.user,
+        )
+        payment = Payment.objects.create(
+            loading=loading,
+            amount_charged=Decimal("50.00"),
+            amount_paid=0,
+            balance=Decimal("50.00"),
+            created_by=self.user,
+        )
+        from logistics.views import Paragraph as ReportParagraph
+
+        with patch(
+            "logistics.views.Paragraph",
+            wraps=ReportParagraph,
+        ) as paragraph:
+            response = self.client.get(reverse("payment_invoice", args=[payment.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        invoice_metadata = next(
+            call.args[0]
+            for call in paragraph.call_args_list
+            if "Amount Due (USD)" in call.args[0]
+        )
+        self.assertIn("No. Of Packages:</b> 12 cartons", invoice_metadata)
+
     def test_payment_receiver_is_required(self):
         form = PaymentTransactionForm(
             data={
