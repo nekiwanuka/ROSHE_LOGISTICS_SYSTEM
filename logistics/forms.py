@@ -470,6 +470,7 @@ class ClientForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["company_name"].required = False
         self.fields["remarks"].required = False
 
 

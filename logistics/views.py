@@ -2244,7 +2244,8 @@ def payment_invoice(request, pk):
 
     bill_to_lines = [
         "<b>BILL TO</b>",
-        f"{client.name}",
+        *([escape(client.company_name)] if client.company_name else []),
+        escape(client.name),
         f"Phone: {client.phone}",
     ]
     if client.email:
@@ -2989,7 +2990,13 @@ def payment_receipt(request, transaction_id):
     )
 
     received_from = Paragraph(
-        f"<b>{escape(client.name)}</b><br/>Phone: {escape(client.phone or '—')}",
+        "<br/>".join(
+            [
+                *([escape(client.company_name)] if client.company_name else []),
+                f"<b>{escape(client.name)}</b>",
+                f"Phone: {escape(client.phone or '—')}",
+            ]
+        ),
         detail_text,
     )
 
@@ -3575,7 +3582,8 @@ def quote_pdf(request, quote_id):
 
     bill_to_lines = [
         "<b>BILL TO</b>",
-        f"{client.name if client else '—'}",
+        *([escape(client.company_name)] if client and client.company_name else []),
+        escape(client.name) if client else "—",
         f"Client ID: {client_id}",
     ]
     if client and client.phone:

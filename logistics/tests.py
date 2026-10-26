@@ -6,8 +6,10 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from reportlab.pdfgen.canvas import Canvas
+from reportlab.platypus import Paragraph as ReportLabParagraph
 
 from .forms import (
+    ClientForm,
     InvoiceContainerFormSet,
     LoadingForm,
     PaymentTransactionForm,
@@ -32,6 +34,84 @@ class MixedFCLDocumentTests(TestCase):
             address="Kampala",
             created_by=self.user,
         )
+
+    def test_client_company_is_optional_and_shown_on_documents(self):
+        form = ClientForm(
+            data={
+                "name": "Individual Client",
+                "contact_person": "Accounts",
+                "phone": "0700000000",
+                "address": "Kampala",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["company_name"], "")
+
+        self.customer.company_name = "Example Company"
+        self.customer.save()
+        loading = Loading.objects.create(
+            client=self.customer,
+            cargo_type="freight_cargo",
+            flow_type="lcl",
+            loading_date=timezone.now(),
+            origin="Mombasa",
+            destination="Kampala",
+            weight=Decimal("1.00"),
+            created_by=self.user,
+        )
+        payment = Payment.objects.create(
+            loading=loading,
+            rate_per_cbm=Decimal("100.00"),
+            amount_charged=Decimal("100.00"),
+            amount_paid=0,
+            balance=Decimal("100.00"),
+            created_by=self.user,
+        )
+        transaction = PaymentTransaction.objects.create(
+            payment=payment,
+            amount=Decimal("100.00"),
+            payment_method="cash",
+            received_by="Amina N.",
+            verification_status="approved",
+            created_by=self.user,
+        )
+        quote_response = self.client.post(
+            reverse("quote_create"),
+            {
+                "client": str(self.customer.pk),
+                "cargo_type": "air_cargo",
+                "flow_type": "lcl",
+                "origin": "Guangzhou",
+                "destination": "Entebbe",
+                "ctns": "12",
+                "gross_weight": "10.00",
+                "rate_per_kg": "5.00",
+                "status": "draft",
+            },
+        )
+        self.assertEqual(quote_response.status_code, 302)
+        quote = Quote.objects.get()
+
+        document_urls = (
+            reverse("payment_invoice", args=[payment.pk]),
+            reverse("payment_receipt", args=[transaction.pk]),
+            reverse("quote_pdf", args=[quote.pk]),
+        )
+        for document_url in document_urls:
+            with self.subTest(document_url=document_url):
+                with patch(
+                    "logistics.views.Paragraph", wraps=ReportLabParagraph
+                ) as paragraph:
+                    response = self.client.get(document_url)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(
+                    any(
+                        "EXAMPLE COMPANY" in str(call.args[0])
+                        and "MIXED CONTAINER CLIENT" in str(call.args[0])
+                        for call in paragraph.call_args_list
+                    )
+                )
 
     def _container_management_data(self):
         return {
